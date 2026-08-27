@@ -22,7 +22,7 @@
 | 1 | captureli-license | /home/coz/captureli-license | 单服务 | 127.0.0.1:8401 | ★ 试点首选 | ✅ 2026-08-27 |
 | 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ✅ 2026-08-27 |
 | 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ✅ 2026-08-27 |
-| 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ⬜ |
+| 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ✅ 2026-08-28 |
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ⬜ |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ⬜ |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
@@ -118,3 +118,20 @@
   credential helper 注入，不入配置文件）；
   ⚠️ 该全权限 PAT 本身仍有效，需在 GitHub → Settings → Developer settings →
   Tokens 手动吊销轮换（无法代操作，属账号级操作）
+
+### name_culture 迁移备忘（2026-08-28 完成，7 秒切换）
+
+- 仓库：coolcrow/name_culture（新建私有仓库 + git 化首推，211 文件）
+- Dokploy：project=name_culture / composeId=3VkpvqqToHpvj3qZJPSc5
+- 双服务：backend + redis（128mb LRU 缓存）；MySQL 走共享实例（root 账号）
+- 数据：bind mount 绝对路径零拷贝（static 1.9M / data 16K / redis RDB 12K）
+- frp：frpc-nc 127.0.0.1:8500 → CVM 8095 → nc_nginx → name-culture.aibolt.tech，零改动
+- 切换：8501 并行验证（health/db/redis 全绿）→ 停旧双容器 → 8500 + redis
+  数据目录 + APP_NAME 修正 → **7 秒恢复**，公网 200
+- 测试修复：get_mp_access_token 测试 patch get_sync 隔离 DB 依赖（CI 无库环境
+  下连接错误先于凭证检查抛出）
+- ⚠️ Dokploy 注入坑：Dokploy 会向 compose 的 .env 注入 APP_NAME=<appName>，
+  覆盖 pydantic 默认值——app_name 有展示意义的项目需在 environment 显式声明
+- 网络事件：测试修复推送撞上第二轮 github.com 中断（08-28 02:45+），经
+  Mac LAN 克隆服务器仓库 + 本机代理中转推送解决；runner checkout 抓到窗口幸存
+- 旧 compose：已 stop 未 down（backend+redis），观察后清理
