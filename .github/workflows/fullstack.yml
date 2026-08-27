@@ -82,6 +82,10 @@ jobs:
           pip install pytest pytest-asyncio httpx
           pytest
 
+      - name: 归还工作区权限
+        if: always()
+        run: chmod -R a+rwX .
+
   test-frontend:
     name: 前端测试
     if: inputs.has-frontend
@@ -99,6 +103,10 @@ jobs:
           npm ci
           npm run test --if-present
           npm run build
+
+      - name: 归还工作区权限
+        if: always()
+        run: chmod -R a+rwX .
 
   build-backend:
     name: 构建后端镜像
