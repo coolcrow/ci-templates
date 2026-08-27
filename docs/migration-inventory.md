@@ -100,13 +100,16 @@
 - 切换方式：新容器先以 ps_backend_new 别名 + 8311 并行验证 → 停旧 → 改别名/端口
   重部署，**停机仅 3 秒**（生产服务推荐此模式）
 - 首次部署 ghcr 拉取极慢（1.7GB 镜像 ~1MB/min，凌晨时段）：改用服务器本地构建镜像
-  + 临时去 pull_policy 完成首部署后已恢复 pull_policy: always；
-  ✅ 已修复（08-28 bc80967）：中央模板 self-hosted 构建后 `--load` 预热本机 daemon，
-  Dokploy 拉取全层 Already exists → 秒级部署（ACR 方案暂不需要）；
-  验证运行 33095697075 因 github.com 网络中断（01:00-01:40+ CST，runner checkout
-  3 次重试全败）未完成——非 --load 步骤问题；网络恢复后重跑：
-  `gh run rerun 33095697075 --failed -R coolcrow/PolyStudio`（或下次 push 自动验证）
-  ⚠️ 夜间 github.com 劣化会拖垮 runner checkout，部署若失败先探测网络再重跑
+  + 临时去 pull_policy 完成首部署；
+  ✅ 已修复并实测验证（08-28）：完整组合 = 中央模板构建后 `--load` 落本机 daemon
+  （bc80967）+ compose `pull_policy: missing`（三项目已统一修改）——实测容器
+  3 秒重建、镜像 ID 与 CI 构建产物一致，ACR 方案不再需要；
+  原理备注：--load 导出未压缩层，digest 与 ghcr 压缩 blob 不匹配，故
+  pull_policy: always 的 "Already exists" 命中不了本地构建层（实测大层仍重新下载），
+  必须用 missing 让 compose 直用本地 tag 跳过拉取
+  ⚠️ 夜间 github.com 劣化会拖垮 runner checkout（08-28 01:00-01:58 实测中断，
+  验证运行因此重跑过一次）；Mac 本机代理 127.0.0.1:7897 可用，服务器经 LAN
+  （192.168.31.98:7897）待代理开启 Allow LAN 后可配 git http proxy
 - 旧 deploy.yml 的 intranet-backend job（CVM 跳板 SSH 构建）已移除
 - 中央模板新增 test-apt-packages 输入（cv2 测试需要 libgl1，f12ede0）
 - 旧 compose：已 stop 未 down，观察 1-2 天后清理（ps-frpc 依赖的

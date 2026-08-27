@@ -60,7 +60,13 @@
 ## Dokploy 部署机制（实测）
 
 - Compose 部署命令：`docker compose up -d --build --remove-orphans`
-- **service 必须写 `pull_policy: always`**，否则不拉新的 latest tag
+- **pull_policy 策略（08-28 更新，替代旧的 `always` 教义）**：ghcr.io 从国内拉取实测
+  停滞（1.7GB 镜像 ~1MB/min），`pull_policy: always` 会让部署卡死数小时。
+  正确组合 = 中央模板 self-hosted 构建后 `--load` 落本机 daemon（bc80967）+
+  compose `pull_policy: missing`——tag 已被 --load 刷新为最新构建，compose 直接
+  使用本地镜像，实测容器 3 秒重建。daemon 无镜像时（新机）退回慢拉取，属可接受兜底。
+  注意：--load 导出的是未压缩层，digest 与 ghcr 压缩 blob 不匹配，故 `always` 的
+  "Already exists" 命中不了本地构建层，必须用 `missing` 跳过拉取。
 - 镜像内容没变时容器不会重建（compose 判定无变化）——正常且高效
 - 部署日志：宿主机 `/etc/dokploy/logs/<appName>/` 下按时间戳分文件
 - webhook 路径格式：`POST /api/deploy/compose/<refreshToken>`（token 是路径参数）；
