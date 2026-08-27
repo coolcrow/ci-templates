@@ -42,6 +42,9 @@
 - 安装位置：`/home/coz/actions-runner-captureli`（systemd 服务，随开机自启）
 - 绑定仓库：coolcrow/captureli-license（用户账号无 org 级 runner，每仓库一个实例）
 - 项目 ci.yml 传 `runner: self-hosted`
+- 第二个实例：`/home/coz/actions-runner-inven-monitor`（coolcrow 无 sudo，改用
+  `systemctl --user` + linger 常驻，服务名 actions-runner-inven-monitor.service；
+  新仓库接入照此模式即可，程序目录可直接 cp 自已有实例后重新 config）
 
 ### 国内网络适配（已内置在中央模板）
 

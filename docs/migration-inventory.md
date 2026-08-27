@@ -20,7 +20,7 @@
 | 顺序 | 项目 | 目录 | 容器构成 | 当前端口 | 复杂度 | 状态 |
 |---|---|---|---|---|---|---|
 | 1 | captureli-license | /home/coz/captureli-license | 单服务 | 127.0.0.1:8401 | ★ 试点首选 | ✅ 2026-08-27 |
-| 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ⬜ |
+| 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ✅ 2026-08-27 |
 | 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ⬜ |
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ⬜ |
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ⬜ |
@@ -61,3 +61,19 @@
   如启用微信支付需提供 pem 并放入数据卷后改 env）
 - 遗留：production job 目前复用 staging 的 composeId；启用 tag 发布时需为生产单独建
   compose 服务（image 用 production-latest）并替换变量
+
+### inven-monitor 迁移备忘（2026-08-27 完成）
+
+- 仓库：coolcrow/inven-monitor（私有，源码已 git 化推送，main 分支）
+- Dokploy：project=inven-monitor / composeId=xMcuwc4YGWkWn_08jsTar
+- 数据：外部卷 inven-monitor_certs_data + inven-monitor_uploads_data 原样保留
+- 数据库：共享 mysql-shared（192.168.31.114:3306/inven_monitor），Dokploy env 里
+  DATABASE_URL 显式指向 192.168.31.114（不能用 .env 里的 127.0.0.1）
+- frp：frpc-hd 127.0.0.1:8400 → 公网 8093（inven-monitor.aibolt.tech），配置零改动
+- runner：/home/coz/actions-runner-inven-monitor（coolcrow 无 sudo 权限，改用
+  systemd --user + linger 常驻；captureli 的 runner 是系统级服务，两者并存）
+- conftest 改造：TEST_DB_URL 支持环境变量注入 + 会话级自动建 schema（对齐
+  scripts/init_test_db.py），中央模板的 test-backend-mysql job 可直接跑
+- ⚠️ 遗留：16 个陈旧测试（商业模式 v2 重构后未更新，断言旧价格/旧套餐限额），
+  CI 全量红；中央模板门控修复后测试不过将阻塞发布，需尽快更新测试
+- 旧 compose：已 stop 未 down（docker-compose.intranet.yml），观察稳定后清理

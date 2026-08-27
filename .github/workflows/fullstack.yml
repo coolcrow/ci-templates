@@ -169,7 +169,7 @@ jobs:
 
   build-backend:
     name: 构建后端镜像
-    needs: [test-backend, test-frontend]
+    needs: [test-backend, test-backend-mysql, test-frontend]
     if: always() && inputs.has-backend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
     permissions:
@@ -216,7 +216,7 @@ jobs:
 
   build-frontend:
     name: 构建前端镜像
-    needs: [test-backend, test-frontend]
+    needs: [test-backend, test-backend-mysql, test-frontend]
     if: always() && inputs.has-frontend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
     permissions:
@@ -273,8 +273,8 @@ jobs:
     needs: [build-backend, build-frontend]
     if: >-
       always() && (inputs.deploy-webhook-url != '' || inputs.dokploy-compose-id != '') &&
-      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
-      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+      (!inputs.has-backend || needs.build-backend.result == 'success') &&
+      (!inputs.has-frontend || needs.build-frontend.result == 'success')
     runs-on: ${{ inputs.runner }}
     steps:
       - name: 调用 Dokploy API 部署
