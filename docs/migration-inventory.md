@@ -74,6 +74,14 @@
   systemd --user + linger 常驻；captureli 的 runner 是系统级服务，两者并存）
 - conftest 改造：TEST_DB_URL 支持环境变量注入 + 会话级自动建 schema（对齐
   scripts/init_test_db.py），中央模板的 test-backend-mysql job 可直接跑
-- ⚠️ 遗留：16 个陈旧测试（商业模式 v2 重构后未更新，断言旧价格/旧套餐限额），
-  CI 全量红；中央模板门控修复后测试不过将阻塞发布，需尽快更新测试
-- 旧 compose：已 stop 未 down（docker-compose.intranet.yml），观察稳定后清理
+- ✅ 测试已修复（同日 90e6b70）：16 个陈旧断言更新至 v2 商业模式语义，
+  全量 671 passed + 1 xfail（xfail 记录已知 bug：员工注册未校验 from_store 租户类型，
+  传品牌 id 会把员工建进品牌租户，待修）
+- ⚠️ 存量问题（迁移前 2026-08-25 即存在，非迁移引入）：启动 bootstrap 报
+  "Multiple rows were found when one or none was required"，非致命（被捕获、服务正常）；
+  已排除超管/套餐/邀请码/演示数据等全部 scalar_one 查找，精确定位需给 bootstrap.py
+  的 logger.error 加 exc_info 后重启看 traceback
+- 备注：测试套件较慢（db fixture 每用例 TRUNCATE 全部 45 张表，全量 12-45 分钟，
+  磁盘压力大时显著变慢），后续可按模块声明依赖表优化
+- 旧 compose：已 stop 未 down（docker-compose.intranet.yml），观察 1-2 天稳定后
+  `docker compose -f docker-compose.intranet.yml down` 清理（8400 端口已被新服务占用，无冲突）
