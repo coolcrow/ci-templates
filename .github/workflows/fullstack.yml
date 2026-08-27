@@ -37,7 +37,12 @@ on:
         type: string
         default: "frontend"
       deploy-webhook-url:
-        description: "Dokploy 应用的 deploy webhook URL；留空则只构建不部署"
+        description: "部署 webhook URL（通用回退方案）；与 dokploy-compose-id 二选一"
+        required: false
+        type: string
+        default: ""
+      dokploy-compose-id:
+        description: "Dokploy Compose 服务 ID（自建服务器场景，直连 API 部署，优先于 webhook）"
         required: false
         type: string
         default: ""
@@ -213,21 +218,23 @@ jobs:
     name: 触发 Dokploy 部署
     needs: [build-backend, build-frontend]
     if: >-
-      always() && inputs.deploy-webhook-url != '' &&
+      always() && (inputs.deploy-webhook-url != '' || inputs.dokploy-compose-id != '') &&
       (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
       (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
     runs-on: ${{ inputs.runner }}
     steps:
-      - name: 调用部署 webhook
-        env:
-          DEPLOY_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+      - name: 调用 Dokploy API 部署
+        if: inputs.dokploy-compose-id != ''
         run: |
-          if [ -n "$DEPLOY_TOKEN" ]; then
-            curl -fsSL -X POST -H "Authorization: Bearer $DEPLOY_TOKEN" \
-              "${{ inputs.deploy-webhook-url }}"
-          else
-            curl -fsSL -X POST "${{ inputs.deploy-webhook-url }}"
-          fi
+          curl -fsSL -X POST "${{ vars.DOKPLOY_API_URL }}/api/compose.deploy" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"composeId": "${{ inputs.dokploy-compose-id }}"}'
+
+      - name: 调用部署 webhook（回退）
+        if: inputs.dokploy-compose-id == '' && inputs.deploy-webhook-url != ''
+        run: |
+          curl -fsSL -X POST "${{ inputs.deploy-webhook-url }}"
 
       - name: 企业微信通知（可选）
         if: always()
