@@ -41,6 +41,11 @@ on:
         required: false
         type: string
         default: ""
+      runner:
+        description: "运行器标签。部署服务器在内网时项目需用 self-hosted"
+        required: false
+        type: string
+        default: "ubuntu-latest"
     secrets:
       DEPLOY_WEBHOOK_TOKEN:
         description: "Dokploy webhook 鉴权 token（如面板启用鉴权）"
@@ -56,7 +61,7 @@ env:
 jobs:
   test:
     name: 测试
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -100,7 +105,7 @@ jobs:
     name: 构建后端镜像
     if: inputs.has-backend
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       packages: write
@@ -139,7 +144,7 @@ jobs:
     name: 构建前端镜像
     if: inputs.has-frontend
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
       packages: write
@@ -188,7 +193,7 @@ jobs:
       always() && inputs.deploy-webhook-url != '' &&
       (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
       (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     steps:
       - name: 调用部署 webhook
         env:
