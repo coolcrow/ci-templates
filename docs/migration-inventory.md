@@ -21,7 +21,7 @@
 |---|---|---|---|---|---|---|
 | 1 | captureli-license | /home/coz/captureli-license | 单服务 | 127.0.0.1:8401 | ★ 试点首选 | ✅ 2026-08-27 |
 | 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ✅ 2026-08-27 |
-| 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ⬜ |
+| 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ✅ 2026-08-27 |
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ⬜ |
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ⬜ |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ⬜ |
@@ -85,3 +85,25 @@
   磁盘压力大时显著变慢），后续可按模块声明依赖表优化
 - 旧 compose：已 stop 未 down（docker-compose.intranet.yml），观察 1-2 天稳定后
   `docker compose -f docker-compose.intranet.yml down` 清理（8400 端口已被新服务占用，无冲突）
+
+### polystudio 迁移备忘（2026-08-27 完成，零停机切换）
+
+- 仓库：coolcrow/PolyStudio（已有 git 历史与 CI，未重推全量）
+- Dokploy：project=polystudio / composeId=7n7X9ffyO1e6gSGDF_gcj
+- 流水线拆分：**后端走中央流水线（backend-cd.yml）**；前端仍走 deploy.yml 的
+  cvm-edge job（GH runner 构建 → scp → CVM 静态托管），两条链路并存
+- 原 ci.yml 恢复为测试流水线（前端 + PR 后端门禁），中央流水线在 backend-cd.yml
+- 数据：外部卷 polystudio_storage_data（129M 生成媒体）零拷贝共享；MySQL 专用账号
+  polystudio@mysql-shared
+- frp：ps-frpc 经 docker 网络别名 `ps_backend:8000` 直连（非宿主端口）——
+  新容器接入同一外部网络 polystudio_polystudio_internal 并接管别名，frp 配置零改动
+- 切换方式：新容器先以 ps_backend_new 别名 + 8311 并行验证 → 停旧 → 改别名/端口
+  重部署，**停机仅 3 秒**（生产服务推荐此模式）
+- 首次部署 ghcr 拉取极慢（1.7GB 镜像 ~1MB/min，凌晨时段）：改用服务器本地构建镜像
+  + 临时去 pull_policy 完成首部署后已恢复 pull_policy: always；
+  ⚠️ 后续 CI 部署若 ghcr 持续慢，考虑换 ACR（README FAQ-2）
+- 旧 deploy.yml 的 intranet-backend job（CVM 跳板 SSH 构建）已移除
+- 中央模板新增 test-apt-packages 输入（cv2 测试需要 libgl1，f12ede0）
+- 旧 compose：已 stop 未 down，观察 1-2 天后清理（ps-frpc 依赖的
+  polystudio_polystudio_internal 网络不会被 down 移除，新容器仍在用）
+- ⚠️ 安全遗留：仓库 remote URL 内嵌全权限 PAT（服务器 ~/github-pat 留档，建议轮换）
