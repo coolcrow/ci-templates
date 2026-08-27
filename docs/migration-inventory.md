@@ -101,9 +101,17 @@
   重部署，**停机仅 3 秒**（生产服务推荐此模式）
 - 首次部署 ghcr 拉取极慢（1.7GB 镜像 ~1MB/min，凌晨时段）：改用服务器本地构建镜像
   + 临时去 pull_policy 完成首部署后已恢复 pull_policy: always；
-  ⚠️ 后续 CI 部署若 ghcr 持续慢，考虑换 ACR（README FAQ-2）
+  ✅ 已修复（08-28 bc80967）：中央模板 self-hosted 构建后 `--load` 预热本机 daemon，
+  Dokploy 拉取全层 Already exists → 秒级部署（ACR 方案暂不需要）；
+  验证运行 33095697075 因 github.com 网络中断（01:00-01:40+ CST，runner checkout
+  3 次重试全败）未完成——非 --load 步骤问题；网络恢复后重跑：
+  `gh run rerun 33095697075 --failed -R coolcrow/PolyStudio`（或下次 push 自动验证）
+  ⚠️ 夜间 github.com 劣化会拖垮 runner checkout，部署若失败先探测网络再重跑
 - 旧 deploy.yml 的 intranet-backend job（CVM 跳板 SSH 构建）已移除
 - 中央模板新增 test-apt-packages 输入（cv2 测试需要 libgl1，f12ede0）
 - 旧 compose：已 stop 未 down，观察 1-2 天后清理（ps-frpc 依赖的
   polystudio_polystudio_internal 网络不会被 down 移除，新容器仍在用）
-- ⚠️ 安全遗留：仓库 remote URL 内嵌全权限 PAT（服务器 ~/github-pat 留档，建议轮换）
+- ✅ 安全加固（08-28）：remote URL 已去除内嵌 PAT（改干净 URL，服务器推送走
+  credential helper 注入，不入配置文件）；
+  ⚠️ 该全权限 PAT 本身仍有效，需在 GitHub → Settings → Developer settings →
+  Tokens 手动吊销轮换（无法代操作，属账号级操作）
