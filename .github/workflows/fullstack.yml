@@ -59,24 +59,20 @@ env:
   TEMPLATES_REPO: ${{ github.repository_owner }}/ci-templates
 
 jobs:
-  test:
-    name: 测试
+  test-backend:
+    name: 后端测试
+    if: inputs.has-backend
     runs-on: ${{ inputs.runner }}
+    container:
+      image: python:3.12
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        if: inputs.has-backend
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            ${{ inputs.backend-path }}/requirements.txt
-            ${{ inputs.backend-path }}/pyproject.toml
-
-      - name: 后端测试 (pytest)
-        if: inputs.has-backend
+      - name: 安装依赖并测试 (pytest)
         working-directory: ${{ inputs.backend-path }}
+        env:
+          # self-hosted（国内服务器）走清华镜像；GitHub 托管 runner 直连 pypi
+          PIP_INDEX_URL: ${{ inputs.runner == 'self-hosted' && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
         run: |
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
@@ -86,16 +82,19 @@ jobs:
           pip install pytest pytest-asyncio httpx
           pytest
 
-      - uses: actions/setup-node@v4
-        if: inputs.has-frontend
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: ${{ inputs.frontend-path }}/package-lock.json
+  test-frontend:
+    name: 前端测试
+    if: inputs.has-frontend
+    runs-on: ${{ inputs.runner }}
+    container:
+      image: node:20
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: 前端测试与构建验证
-        if: inputs.has-frontend
+      - name: 测试与构建验证
         working-directory: ${{ inputs.frontend-path }}
+        env:
+          NPM_CONFIG_REGISTRY: ${{ inputs.runner == 'self-hosted' && 'https://registry.npmmirror.com' || 'https://registry.npmjs.org' }}
         run: |
           npm ci
           npm run test --if-present
@@ -103,8 +102,8 @@ jobs:
 
   build-backend:
     name: 构建后端镜像
-    if: inputs.has-backend
-    needs: test
+    needs: [test-backend, test-frontend]
+    if: always() && inputs.has-backend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
@@ -142,8 +141,8 @@ jobs:
 
   build-frontend:
     name: 构建前端镜像
-    if: inputs.has-frontend
-    needs: test
+    needs: [test-backend, test-frontend]
+    if: always() && inputs.has-frontend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
