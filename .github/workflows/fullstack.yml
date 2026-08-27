@@ -233,6 +233,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
 
+      # ghcr.io 从国内拉取极慢（1.7GB 实测 ~1MB/min）甚至停滞；CI 与部署机同机时，
+      # 构建后直接把镜像 load 进本机 daemon —— Dokploy 的 pull_policy:always 拉取时
+      # 全部层 Already exists，部署从小时级降到秒级。第二次 build 命中本地缓存，代价仅镜像导出的时间。
+      - name: 预热部署机本地镜像缓存
+        if: inputs.runner == 'self-hosted'
+        working-directory: ${{ inputs.backend-path }}
+        run: >-
+          docker buildx build --load --cache-from type=gha
+          -t ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
+          .
+
   build-frontend:
     name: 构建前端镜像
     needs: [test-backend, test-backend-mysql, test-frontend]
@@ -286,6 +297,15 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
+
+      # 同 build-backend：预热本机 daemon，规避 ghcr.io 国内拉取停滞
+      - name: 预热部署机本地镜像缓存
+        if: inputs.runner == 'self-hosted'
+        working-directory: ${{ inputs.frontend-path }}
+        run: >-
+          docker buildx build --load --cache-from type=gha
+          -t ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
+          .
 
   deploy:
     name: 触发 Dokploy 部署
