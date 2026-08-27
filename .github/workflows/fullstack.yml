@@ -66,6 +66,11 @@ on:
         required: false
         type: string
         default: "ubuntu-latest"
+      test-apt-packages:
+        description: "测试容器需额外安装的 apt 包（空格分隔，如 libgl1；opencv 等原生依赖场景）"
+        required: false
+        type: string
+        default: ""
     secrets:
       DEPLOY_WEBHOOK_TOKEN:
         description: "Dokploy webhook 鉴权 token（如面板启用鉴权）"
@@ -87,6 +92,13 @@ jobs:
       image: python:3.12
     steps:
       - uses: actions/checkout@v4
+
+      - name: 安装额外系统依赖
+        if: inputs.test-apt-packages != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ${{ inputs.test-apt-packages }}
+          rm -rf /var/lib/apt/lists/*
 
       - name: 安装依赖并测试 (pytest)
         working-directory: ${{ inputs.backend-path }}
@@ -125,6 +137,13 @@ jobs:
           --health-retries=30
     steps:
       - uses: actions/checkout@v4
+
+      - name: 安装额外系统依赖
+        if: inputs.test-apt-packages != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ${{ inputs.test-apt-packages }}
+          rm -rf /var/lib/apt/lists/*
 
       - name: 安装依赖并测试 (pytest)
         working-directory: ${{ inputs.backend-path }}
