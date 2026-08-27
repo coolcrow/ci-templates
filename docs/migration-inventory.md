@@ -19,7 +19,7 @@
 
 | 顺序 | 项目 | 目录 | 容器构成 | 当前端口 | 复杂度 | 状态 |
 |---|---|---|---|---|---|---|
-| 1 | captureli-license | /home/coz/captureli-license | 单服务 | - | ★ 试点首选 | ⬜ |
+| 1 | captureli-license | /home/coz/captureli-license | 单服务 | 127.0.0.1:8401 | ★ 试点首选 | ✅ 2026-08-27 |
 | 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ⬜ |
 | 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ⬜ |
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ⬜ |
@@ -42,8 +42,22 @@
 
 1. 读项目目录的 compose 文件 + .env，记录：镜像构建方式、环境变量、volume、依赖（mysql/redis/frp）
 2. 仓库接入中央流水线（复制 examples/project-ci.yml，改 project-name）
-3. Dokploy 建应用（镜像 ghcr.io/<org>/<name>-backend:staging-latest），填环境变量
-4. 验证新部署健康（日志 + 接口探活）
-5. **有 frp 的项目**：改 frpc 配置指向新入口，验证外网访问
-6. 停旧 compose（`docker compose stop`，先不删），观察 1-2 天
-7. 确认稳定后 `docker compose down`，释放旧端口，台账打勾
+3. Dokploy 建 Compose 服务（镜像 ghcr.io/coolcrow/<name>-backend:staging-latest，
+   **service 里必须加 `pull_policy: always`**，volume 用 external 挂旧卷保数据）
+4. 仓库配置 secret `DOKPLOY_API_KEY` + 变量 `DOKPLOY_API_URL`（或复用账号级配置）
+5. ci.yml 填 `dokploy-compose-id`（Dokploy API 创建后返回的 composeId）
+6. 验证新部署健康（日志 + 接口探活）
+7. **有 frp 的项目**：改 frpc 配置指向新入口，验证外网访问
+8. 停旧 compose（`docker compose stop`，先不删），观察 1-2 天
+9. 确认稳定后 `docker compose down`，释放旧端口，台账打勾
+
+### captureli-license 迁移备忘（试点，2026-08-27 完成）
+
+- 仓库：coolcrow/captureli-license（私有，源码已 git 化推送）
+- Dokploy：project=captureli / composeId=xs70P1RqjF0qhvD6UKh8w
+- 数据：外部卷 captureli-license_license_data（licenses.db 原样保留，零拷贝）
+- frp：frpc-hd 127.0.0.1:8401 → 公网 8094，配置零改动
+- 已知问题：WECHAT_MERCHANT_PRIVATE_KEY_PEM 路径悬空（/home/ubuntu/...，迁移前就存在，
+  如启用微信支付需提供 pem 并放入数据卷后改 env）
+- 遗留：production job 目前复用 staging 的 composeId；启用 tag 发布时需为生产单独建
+  compose 服务（image 用 production-latest）并替换变量

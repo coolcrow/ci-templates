@@ -37,10 +37,36 @@
 - 交互式文档 `/api/reference` 需浏览器会话（面板登录后访问）
 - 用途：程序化建 project/application、写环境变量、触发部署、回滚——迁移操作全部走 API，不碰 UI
 
+## Self-hosted Runner（部署服务器内网，GitHub 托管 runner 无法回调）
+
+- 安装位置：`/home/coz/actions-runner-captureli`（systemd 服务，随开机自启）
+- 绑定仓库：coolcrow/captureli-license（用户账号无 org 级 runner，每仓库一个实例）
+- 项目 ci.yml 传 `runner: self-hosted`
+
+### 国内网络适配（已内置在中央模板）
+
+| 问题 | 解法 |
+|---|---|
+| setup-python/node 工具下载极慢（50KB/s） | 测试改为容器内运行（python:3.12 / node:20），镜像走 daemon 的 daocloud 加速 |
+| buildx 容器不继承 daemon mirror，FROM docker.io 超时 | setup-buildx-action 传 config-inline：docker.io → docker.m.daocloud.io |
+| 容器内测试以 root 落盘，宿主 job 无法 checkout | 测试 job 末尾 `chmod -R a+rwX .` |
+| pip/npm 慢 | runner=self-hosted 时自动切清华 pip 源 / npmmirror |
+| git push github.com 偶发 TLS/超时 | 重试即可（脚本内置 5 次重试） |
+| ghcr.io 拉取 364MB 约 1-2 分钟 | 可接受；后续可换 ACR 优化 |
+
+## Dokploy 部署机制（实测）
+
+- Compose 部署命令：`docker compose up -d --build --remove-orphans`
+- **service 必须写 `pull_policy: always`**，否则不拉新的 latest tag
+- 镜像内容没变时容器不会重建（compose 判定无变化）——正常且高效
+- 部署日志：宿主机 `/etc/dokploy/logs/<appName>/` 下按时间戳分文件
+- webhook 路径格式：`POST /api/deploy/compose/<refreshToken>`（token 是路径参数）；
+  实测可用，但中央模板默认走更明确的 `POST /api/compose.deploy {"composeId"}` + x-api-key
+
 ## 后续手动步骤
 
-1. 面板创建管理员账号（http://192.168.31.114:3000）
-2. 生成 API Key 并存入服务器 ~/dokploy-api-key
-3. Settings → Registries 添加 ghcr.io（GitHub 用户名 + PAT 勾 read:packages）
-4. 按 migration-inventory.md 顺序逐个迁移项目
-5. 全部迁移完成后：`apt purge apache2` 清理残留
+1. ~~面板创建管理员账号~~ ✅（API Key 已配置：~/dokploy-api-key）
+2. ~~ghcr registry 凭证~~ ✅（ghcr-coolcrow，PAT 已配）
+3. 按 migration-inventory.md 顺序逐个迁移项目（captureli-license 已完成 ✅）
+4. 全部迁移完成后：`apt purge apache2` 清理残留
+5. 建议整改：polystudio git remote 里的全权限 PAT 轮换（已在服务器 ~/github-pat 留档）
