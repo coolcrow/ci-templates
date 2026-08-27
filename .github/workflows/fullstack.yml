@@ -46,6 +46,21 @@ on:
         required: false
         type: string
         default: ""
+      needs-mysql:
+        description: "后端测试是否需要 MySQL 8.0 服务容器"
+        required: false
+        type: boolean
+        default: false
+      test-mysql-db:
+        description: "测试 MySQL 库名"
+        required: false
+        type: string
+        default: "app_test"
+      test-mysql-password:
+        description: "测试 MySQL root 密码"
+        required: false
+        type: string
+        default: "test-pw"
       runner:
         description: "运行器标签。部署服务器在内网时项目需用 self-hosted"
         required: false
@@ -66,7 +81,7 @@ env:
 jobs:
   test-backend:
     name: 后端测试
-    if: inputs.has-backend
+    if: inputs.has-backend && !inputs.needs-mysql
     runs-on: ${{ inputs.runner }}
     container:
       image: python:3.12
@@ -78,6 +93,45 @@ jobs:
         env:
           # self-hosted（国内服务器）走清华镜像；GitHub 托管 runner 直连 pypi
           PIP_INDEX_URL: ${{ inputs.runner == 'self-hosted' && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install .
+          fi
+          pip install pytest pytest-asyncio httpx
+          pytest
+
+      - name: 归还工作区权限
+        if: always()
+        run: chmod -R a+rwX .
+
+  test-backend-mysql:
+    name: 后端测试（含 MySQL）
+    if: inputs.has-backend && inputs.needs-mysql
+    runs-on: ${{ inputs.runner }}
+    container:
+      image: python:3.12
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ inputs.test-mysql-password }}
+          MYSQL_DATABASE: ${{ inputs.test-mysql-db }}
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p${{ inputs.test-mysql-password }} --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装依赖并测试 (pytest)
+        working-directory: ${{ inputs.backend-path }}
+        env:
+          PIP_INDEX_URL: ${{ inputs.runner == 'self-hosted' && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
+          # 容器 job 内通过服务名访问 MySQL；项目 conftest 需支持 TEST_DB_URL 环境变量覆盖
+          TEST_DB_URL: mysql+aiomysql://root:${{ inputs.test-mysql-password }}@mysql:3306/${{ inputs.test-mysql-db }}?charset=utf8mb4
         run: |
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
