@@ -1,0 +1,213 @@
+name: fullstack-pipeline
+# ============================================================
+# 中央可复用流水线：测试 → 构建镜像(ghcr.io) → 触发 Dokploy 部署
+# 各项目通过 workflow_call 引用本文件，禁止在项目内复制修改。
+# 流水线逻辑变更只改这里，全部项目自动生效。
+# ============================================================
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: "项目名，用于镜像命名 ghcr.io/<org>/<project-name>-(backend|frontend)"
+        required: true
+        type: string
+      environment:
+        description: "部署环境：staging | production"
+        required: true
+        type: string
+      has-backend:
+        description: "是否构建/测试后端"
+        required: false
+        type: boolean
+        default: true
+      has-frontend:
+        description: "是否构建/测试前端"
+        required: false
+        type: boolean
+        default: true
+      backend-path:
+        description: "后端目录（源码在仓库根目录的项目用 \".\"）"
+        required: false
+        type: string
+        default: "backend"
+      frontend-path:
+        description: "前端目录"
+        required: false
+        type: string
+        default: "frontend"
+      deploy-webhook-url:
+        description: "Dokploy 应用的 deploy webhook URL；留空则只构建不部署"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      DEPLOY_WEBHOOK_TOKEN:
+        description: "Dokploy webhook 鉴权 token（如面板启用鉴权）"
+        required: false
+      WECOM_WEBHOOK_URL:
+        description: "企业微信群机器人 webhook（可选，推送部署结果）"
+        required: false
+
+env:
+  REGISTRY: ghcr.io
+  TEMPLATES_REPO: ${{ github.repository_owner }}/ci-templates
+
+jobs:
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        if: inputs.has-backend
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            ${{ inputs.backend-path }}/requirements.txt
+            ${{ inputs.backend-path }}/pyproject.toml
+
+      - name: 后端测试 (pytest)
+        if: inputs.has-backend
+        working-directory: ${{ inputs.backend-path }}
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install .
+          fi
+          pip install pytest pytest-asyncio httpx
+          pytest
+
+      - uses: actions/setup-node@v4
+        if: inputs.has-frontend
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ inputs.frontend-path }}/package-lock.json
+
+      - name: 前端测试与构建验证
+        if: inputs.has-frontend
+        working-directory: ${{ inputs.frontend-path }}
+        run: |
+          npm ci
+          npm run test --if-present
+          npm run build
+
+  build-backend:
+    name: 构建后端镜像
+    if: inputs.has-backend
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备 Dockerfile（项目可在 <backend-path>/Dockerfile 覆盖中央模板）
+        run: |
+          if [ ! -f "${{ inputs.backend-path }}/Dockerfile" ]; then
+            curl -fsSL \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/${{ env.TEMPLATES_REPO }}/contents/docker/backend.Dockerfile" \
+              -o "${{ inputs.backend-path }}/Dockerfile"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.backend-path }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
+
+  build-frontend:
+    name: 构建前端镜像
+    if: inputs.has-frontend
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备 Dockerfile 与 nginx 配置（项目可放 <frontend-path>/Dockerfile 覆盖）
+        run: |
+          if [ ! -f "${{ inputs.frontend-path }}/Dockerfile" ]; then
+            curl -fsSL \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/${{ env.TEMPLATES_REPO }}/contents/docker/frontend.Dockerfile" \
+              -o "${{ inputs.frontend-path }}/Dockerfile"
+          fi
+          if [ ! -f "${{ inputs.frontend-path }}/nginx.conf" ]; then
+            curl -fsSL \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/${{ env.TEMPLATES_REPO }}/contents/docker/nginx.conf" \
+              -o "${{ inputs.frontend-path }}/nginx.conf"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.frontend-path }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
+
+  deploy:
+    name: 触发 Dokploy 部署
+    needs: [build-backend, build-frontend]
+    if: >-
+      always() && inputs.deploy-webhook-url != '' &&
+      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
+      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 调用部署 webhook
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+        run: |
+          if [ -n "$DEPLOY_TOKEN" ]; then
+            curl -fsSL -X POST -H "Authorization: Bearer $DEPLOY_TOKEN" \
+              "${{ inputs.deploy-webhook-url }}"
+          else
+            curl -fsSL -X POST "${{ inputs.deploy-webhook-url }}"
+          fi
+
+      - name: 企业微信通知（可选）
+        if: always()
+        env:
+          WECOM_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        run: |
+          [ -z "$WECOM_URL" ] && exit 0
+          RESULT=$([ "${{ job.status }}" = "success" ] && echo "成功" || echo "失败")
+          curl -fsSL -X POST "$WECOM_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"[${{ inputs.project-name }}] ${{ inputs.environment }} 部署${RESULT} @ ${{ github.sha }}\"}}"

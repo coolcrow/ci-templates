@@ -1,0 +1,43 @@
+# ============================================================
+# 项目接入示例：把本文件复制为项目仓库的 .github/workflows/ci.yml
+# 只需修改 project-name 和 webhook 变量，其他一行不动。
+# 触发策略（全自动，无人工闸门）：
+#   push main   → 测试 + 构建 + 自动部署 staging
+#   打 tag v*   → 测试 + 构建 + 自动部署 production
+# ============================================================
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  staging:
+    if: github.ref == 'refs/heads/main'
+    uses: YOUR-ORG/ci-templates/.github/workflows/fullstack.yml@main
+    with:
+      project-name: my-project        # ← 改成项目名（决定镜像名）
+      environment: staging
+      deploy-webhook-url: ${{ vars.DOKPLOY_STAGING_WEBHOOK }}  # ← 在仓库 Settings > Variables 配置
+    secrets: inherit
+
+  production:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: YOUR-ORG/ci-templates/.github/workflows/fullstack.yml@main
+    with:
+      project-name: my-project        # ← 与 staging 保持一致
+      environment: production
+      deploy-webhook-url: ${{ vars.DOKPLOY_PROD_WEBHOOK }}       # ← 在仓库 Settings > Variables 配置
+    secrets: inherit
+
+# 可选参数（在 with: 中添加）：
+#   has-backend: false     # 纯前端项目
+#   has-frontend: false    # 纯后端项目
+#
+# 可选 secret（组织级配置一次即可）：
+#   WECOM_WEBHOOK_URL      # 企业微信群机器人，接收部署结果通知

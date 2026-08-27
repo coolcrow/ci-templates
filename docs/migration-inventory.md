@@ -1,0 +1,49 @@
+# 存量项目部署现状盘点（迁移台账）
+
+> 盘点时间：2026-08-27。迁移原则：**理解现状 → 逐个迁移 → 迁移一个释放一个旧端口**。
+> 每完成一行就在"状态"列打勾，并更新日期。
+
+## ⚠️ 盘点发现的风险（优先处理）
+
+1. **3 个容器没有重启策略（restart=no），服务器重启后不会自动恢复**：
+   - `home-delivery-redis-1`（home-delivery 的缓存/队列）
+   - `portrait-mysql-1`、`portrait-redis-1`（portrait 的数据库和缓存）
+   → 这就是"重启影响部署"的隐患源头。迁移时由 Dokploy 接管即自动解决；
+     未迁移前可临时修复：`docker update --restart unless-stopped <容器名>`
+2. **mysql-shared 把 3306 和 3307 同时暴露到 0.0.0.0**：多项目共享库 + 双端口暴露，
+   内网可接受但建议迁移期收敛为仅 127.0.0.1 或集群内访问
+3. **5 个独立 frpc 容器**（frpc-deploy/frpc-hd/frpc-nc/frpc-mall/ps-frpc）：
+   是公网入口隧道，迁移项目时**必须同步改 frp 配置**指向新端口/域名，否则外网断流
+
+## compose 项目（9 个，按建议迁移顺序）
+
+| 顺序 | 项目 | 目录 | 容器构成 | 当前端口 | 复杂度 | 状态 |
+|---|---|---|---|---|---|---|
+| 1 | captureli-license | /home/coz/captureli-license | 单服务 | - | ★ 试点首选 | ⬜ |
+| 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ⬜ |
+| 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ⬜ |
+| 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ⬜ |
+| 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ⬜ |
+| 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ⬜ |
+| 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
+| 8 | portrait | /home/coz/portrait | 后端+celery+mysql+redis | 0.0.0.0:8200 | ★★★ 自带 mysql | ⬜ |
+| 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
+
+## 独立容器（非 compose，需逐一确认归属）
+
+| 容器 | 镜像 | 说明 | 处置 |
+|---|---|---|---|
+| frpc-deploy / frpc-hd / frpc-nc / frpc-mall / ps-frpc | snowdreamtech/frpc | 公网隧道 | 保持独立，迁移项目时改配置 |
+| minio | - | 对象存储 | 保持独立或迁入 Dokploy（有官方模板） |
+| dailyhotapi | imsyy/dailyhot-api | 公共服务 API | 可迁入 Dokploy（低优先） |
+| xboard | ghcr.io/cedar2025/xboard | 面板（6 个 bind 挂载） | 保持独立，不动 |
+
+## 每个项目的迁移流程（通用）
+
+1. 读项目目录的 compose 文件 + .env，记录：镜像构建方式、环境变量、volume、依赖（mysql/redis/frp）
+2. 仓库接入中央流水线（复制 examples/project-ci.yml，改 project-name）
+3. Dokploy 建应用（镜像 ghcr.io/<org>/<name>-backend:staging-latest），填环境变量
+4. 验证新部署健康（日志 + 接口探活）
+5. **有 frp 的项目**：改 frpc 配置指向新入口，验证外网访问
+6. 停旧 compose（`docker compose stop`，先不删），观察 1-2 天
+7. 确认稳定后 `docker compose down`，释放旧端口，台账打勾
