@@ -28,7 +28,7 @@
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ✅ 2026-08-28 |
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ✅ 2026-08-28 |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ✅ 2026-08-28 |
-| 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
+| 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ✅ 2026-08-28 |
 | 8 | portrait | /home/coz/portrait | 后端+celery+redis | 0.0.0.0:8200 | ★★ | ⬜ |
 | 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
 
@@ -178,3 +178,23 @@
   建议轮换（会使现有登录 token 失效，需用户择机操作）
 - 独立容器 dailyhotapi（0.0.0.0:6688）不属于本 compose，未动
 - 旧 compose：已 stop 未 down（publisher+dailyhot 双容器）
+
+### home-delivery 迁移备忘（2026-08-28 完成，6 秒切换，首个 celery 项目）
+
+- 仓库：coolcrow/home-delivery（已有历史仓库，**master 分支**保持原约定；同步了
+  服务器侧 17 天漂移 + migrations SQL 首次入库）
+- Dokploy：project=home-delivery / composeId=RZe4zbC5m-M5mBAxTGJri
+- 四服务：api + celery-worker + celery-beat + redis——worker/beat 与 api 同镜像
+  不同 command；切换前检查 redis 队列深度（=0 无损窗口）
+- 切换：8101 四容器并行验证（worker Connected/ready + beat 调度正常）→
+  停旧 → 8100 + redis 6380 → **6 秒恢复**；frp（frpc-hd 8100→8090）零改动
+- 测试修复（22→6→0 三轮）：根因是**生产库手动加列**（coach_cash/car_cash/
+  cash_status）而模型/迁移/测试内联 DDL 全没跟上——修复 = 测试 DDL 对齐生产
+  列集 + 种子/断言从 amount 迁到 cash/coach_cash 语义
+- pyproject 修复：setuptools 显式包发现（app*，多顶层目录下 pip install . 必炸）
+  + fakeredis 移入主依赖（测试容器直跑）
+- ⚠️ 代理遗留：服务器 git 全局代理已配（Mac Allow LAN 已开），但 runner job
+  容器的 HOME 机制（_temp/_github_home 每次重建）使 checkout 偶发不继承代理
+  配置、直连仍会撞夜间/白天劣化窗口——checkout 失败重跑即可，总解决方案待定
+- 数据：static bind mount（1.8M）零拷贝；MySQL 专用账号 hd@mysql-shared
+- 旧 compose：已 stop 未 down（api/worker/beat/redis 四容器）
