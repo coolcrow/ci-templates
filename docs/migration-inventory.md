@@ -233,8 +233,9 @@
   15:20:54 ready，总断连约 7 秒**
 - 验证：版本 8.0.46 一致、七大应用全部健康（hd database:ok 实证重连）、
   连接池惰性恢复（初始 19 条逐步增长）
-- ⚠️ 3307 切换前的 1 条连接未自动回归（端口绑定正常、新连接可用）——
-  请确认哪个服务走 3307 及其重试机制
+- ✅ 3307 客户端身份已查明（08-28 15:30 复核）：服务器侧无任何活跃配置/容器
+  引用 3307（仅 home-delivery 死备份目录与映射自身）——切换前那条连接应为
+  外部/管理端客户端（Navicat 类）；端口保留可用，重连即恢复，无服务依赖风险
 - 旧容器 mysql-shared 已 stop 未删（回滚保险：docker start mysql-shared）
 - 备份位置：/mnt/data/apps/mysql-shared/backups/（backup.sh，14 天保留）
 - 服务清单（11 库）：data_engine / home_delivery / inven_monitor /
