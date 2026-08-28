@@ -30,7 +30,7 @@
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ✅ 2026-08-28 |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ✅ 2026-08-28 |
 | 8 | portrait | /home/coz/portrait | 后端+celery+redis | 0.0.0.0:8200 | ★★ | ✅ 2026-08-28 |
-| 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
+| 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ✅ 2026-08-28 |
 
 ## 独立容器（非 compose，需逐一确认归属）
 
@@ -220,3 +220,23 @@
 - 待清理：孤儿 portrait-mysql-1（零表空壳，运行中）+ portrait_mysql_data 卷
   （200MB）+ 已 stop 的旧 compose 三容器——需用户确认后执行
 - 旧 compose：已 stop 未 down（backend/celery-worker/redis）
+
+### mysql-shared 迁移备忘（2026-08-28 完成，~7 秒断连窗口，9/9 收官）
+
+- 无仓库/CI 环节（纯基础设施接管）：Dokploy project=mysql-shared /
+  composeId=luWRC_r5FanBxqUwso22E
+- 同卷接管：external 卷 mysql-shared_mysql-data 数据零移动；镜像 mysql:8.0
+  用本地 8.0.46（pull_policy: missing 防版本漂移）；init-users.sql 绝对路径 bind
+- 配置原样复制：4G buffer pool / max-connections 400 / utf8mb4 /
+  skip-name-resolve / 双端口 3306+3307（3307 切换前有活跃连接，保留）
+- 切换序列：backup.sh 全量备份（2.6M）→ 停旧 → 部署 → **15:20:47 停旧 →
+  15:20:54 ready，总断连约 7 秒**
+- 验证：版本 8.0.46 一致、七大应用全部健康（hd database:ok 实证重连）、
+  连接池惰性恢复（初始 19 条逐步增长）
+- ⚠️ 3307 切换前的 1 条连接未自动回归（端口绑定正常、新连接可用）——
+  请确认哪个服务走 3307 及其重试机制
+- 旧容器 mysql-shared 已 stop 未删（回滚保险：docker start mysql-shared）
+- 备份位置：/mnt/data/apps/mysql-shared/backups/（backup.sh，14 天保留）
+- 服务清单（11 库）：data_engine / home_delivery / inven_monitor /
+  name_culture / ntaoke_db / oneapi / polystudio / portrait / pymall /
+  warehouse_kpi / weixin_publisher
