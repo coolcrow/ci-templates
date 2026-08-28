@@ -10,6 +10,9 @@
    - `portrait-mysql-1`、`portrait-redis-1`（portrait 的数据库和缓存）
    → 这就是"重启影响部署"的隐患源头。迁移时由 Dokploy 接管即自动解决；
      未迁移前可临时修复：`docker update --restart unless-stopped <容器名>`
+   （2026-08-28 复核：portrait 的 mysql 实际已迁共享实例——compose 指向
+   mysql-shared，portrait-mysql-1 是零表空壳孤儿容器 + 200MB 卷，重启策略
+   已是 unless-stopped；迁移 #8 时可顺手清理孤儿容器和卷，待用户确认）
 2. **mysql-shared 把 3306 和 3307 同时暴露到 0.0.0.0**：多项目共享库 + 双端口暴露，
    内网可接受但建议迁移期收敛为仅 127.0.0.1 或集群内访问
 3. **5 个独立 frpc 容器**（frpc-deploy/frpc-hd/frpc-nc/frpc-mall/ps-frpc）：
@@ -26,7 +29,7 @@
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ✅ 2026-08-28 |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ✅ 2026-08-28 |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
-| 8 | portrait | /home/coz/portrait | 后端+celery+mysql+redis | 0.0.0.0:8200 | ★★★ 自带 mysql | ⬜ |
+| 8 | portrait | /home/coz/portrait | 后端+celery+redis | 0.0.0.0:8200 | ★★ | ⬜ |
 | 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
 
 ## 独立容器（非 compose，需逐一确认归属）
