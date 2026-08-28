@@ -264,3 +264,26 @@ polystudio_storage_data / captureli-license_license_data）、旧容器全部清
 - 坑：/var/www 为 root 属主，ubuntu 的 mv/mkdir 被拒（手动 deploy.sh 只
   rsync 进子目录从未触发）——切换步骤带 sudo 解决
 - 原手动部署入口 deploy/deploy.sh 保留可用（紧急绕开 CI 时用）
+
+## 前端自动化补齐（2026-08-28 第一波，3/6 完成）
+
+架构认知：CVM 上 `nc_nginx` 容器为公网总入口（80/443），各前端为静态目录
+挂载进容器；pymall web 走独立的 pymall-web-1 容器。
+
+已自动化（build→scp→rsync→version.txt 验证，均在 GH-hosted runner）：
+- **pymall web**（admin + h5 双构建）：仓库 deploy-web.yml →
+  /srv/pymall/{admin-web/dist, h5-app/dist/build/h5}；✓ 首部署 48e1d2b
+- **home-delivery admin**：deploy-admin.yml → /home/ubuntu/home-delivery-admin
+  （d2d.aibolt.tech 裸域）；✓ 首部署 3eb0737
+- **captureli 页面**：静态 web/ 入库 → /var/www/captureli；✓ 9b2f83f
+  （坑：web/ 目录使 captureli 的 pip install . 触发 setuptools 多顶层包
+  错误——pyproject 补显式包发现 include app*）
+
+待治理决策后接入（源码在活跃开发仓库或未定位）：
+- nc h5 + admin：源码在 Mac ~/PycharmProjects/name_culture（admin-web + h5），
+  活跃开发仓库为 coolcrow/**name-culture**（连字符，h5-ga 分支）——与部署仓库
+  coolcrow/name_culture（下划线）双轨，需用户定夺合并方向
+- inven webroot（admin + landing）：活跃开发仓库 coolcrow/inven_monitor_saas
+  （有新提交）与部署仓库 coolcrow/inven-monitor 双轨，同上
+- portrait h5 + admin：Mac ~/PycharmProjects/portrait/frontend 为单个 vite
+  工程，但 CVM 有 portrait-h5 + portrait-admin 两个目标——admin 源码未定位
