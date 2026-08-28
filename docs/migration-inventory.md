@@ -10,9 +10,8 @@
    - `portrait-mysql-1`、`portrait-redis-1`（portrait 的数据库和缓存）
    → 这就是"重启影响部署"的隐患源头。迁移时由 Dokploy 接管即自动解决；
      未迁移前可临时修复：`docker update --restart unless-stopped <容器名>`
-   （2026-08-28 复核：portrait 的 mysql 实际已迁共享实例——compose 指向
-   mysql-shared，portrait-mysql-1 是零表空壳孤儿容器 + 200MB 卷，重启策略
-   已是 unless-stopped；迁移 #8 时可顺手清理孤儿容器和卷，待用户确认）
+   （2026-08-28 复核+清理：portrait 的 mysql 实际已迁共享实例，孤儿容器为空壳——
+   删除前复核 0 表/共享库 9 表，用户确认后已删除容器+卷+portrait_default 网络）
 2. **mysql-shared 把 3306 和 3307 同时暴露到 0.0.0.0**：多项目共享库 + 双端口暴露，
    内网可接受但建议迁移期收敛为仅 127.0.0.1 或集群内访问
 3. **5 个独立 frpc 容器**（frpc-deploy/frpc-hd/frpc-nc/frpc-mall/ps-frpc）：
@@ -217,8 +216,8 @@
   app 包必须手动入 path，home-delivery 同款必备项）+ pytest.ini
 - 敏感文件 admin_credentials.txt（含明文管理员密码）已 gitignore 未入库
 - test-apt-packages: build-essential libgl1 libglib2.0（insightface 原生依赖）
-- 待清理：孤儿 portrait-mysql-1（零表空壳，运行中）+ portrait_mysql_data 卷
-  （200MB）+ 已 stop 的旧 compose 三容器——需用户确认后执行
+- ✅ 孤儿已清理（08-28 用户确认）：portrait-mysql-1 + portrait_mysql_data 卷 +
+  portrait_default 网络（删除前复核 0 表空壳；模型卷 600M 不受影响）
 - 旧 compose：已 stop 未 down（backend/celery-worker/redis）
 
 ### mysql-shared 迁移备忘（2026-08-28 完成，~7 秒断连窗口，9/9 收官）
