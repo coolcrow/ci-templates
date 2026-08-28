@@ -241,3 +241,13 @@
 - 服务清单（11 库）：data_engine / home_delivery / inven_monitor /
   name_culture / ntaoke_db / oneapi / polystudio / portrait / pymall /
   warehouse_kpi / weixin_publisher
+
+## ✅ 迁移收官（2026-08-28 17:50 CST）
+
+八个旧 compose 已全部 down（严格无 -v），后置验证：七应用 + 共享 MySQL
+健康全绿、关键数据卷完好（mysql-shared_mysql-data / portrait_insightface_models /
+polystudio_storage_data / captureli-license_license_data）、旧容器全部清除。
+两个未能删除的旧网络（均为正常现象）：
+- polystudio_polystudio_internal：ps-frpc + 新 backend 在用（frp 链路依赖，保留即正确）
+- portrait_default：被孤儿 portrait-mysql-1 占用（孤儿清理后自动可删）
+**迁移战役 9/9 完成。**
