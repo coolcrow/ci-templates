@@ -23,7 +23,7 @@
 | 2 | inven-monitor | /home/coz/inven-monitor | 单后端 | 127.0.0.1:8400 | ★ | ✅ 2026-08-27 |
 | 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ✅ 2026-08-27 |
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ✅ 2026-08-28 |
-| 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ⬜ |
+| 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ✅ 2026-08-28 |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ⬜ |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
 | 8 | portrait | /home/coz/portrait | 后端+celery+mysql+redis | 0.0.0.0:8200 | ★★★ 自带 mysql | ⬜ |
@@ -135,3 +135,20 @@
 - 网络事件：测试修复推送撞上第二轮 github.com 中断（08-28 02:45+），经
   Mac LAN 克隆服务器仓库 + 本机代理中转推送解决；runner checkout 抓到窗口幸存
 - 旧 compose：已 stop 未 down（backend+redis），观察后清理
+
+### pymall-intranet 迁移备忘（2026-08-28 完成，6 秒切换）
+
+- 仓库：coolcrow/pymall（新建私有仓库 + git 化首推，234 文件）
+- Dokploy：project=pymall / composeId=jMBH89rv1ZtE4wbdiu0oD
+- 范围：仅内网 API 容器（web/admin/h5 留在 CVM 全栈 compose；admin-web/h5 构建
+  走存量 CI 的 GH-hosted job，backend job 改 PR-only 避免与中央流水线重复）
+- 数据：bind mount 绝对路径零拷贝（certs 12K / backups 44K / uploads 2.2M）
+- frp：frpc-mall 经 **172.17.0.1:9200**（docker0 网关而非 127.0.0.1）→ CVM 8097
+  → mall.aibolt.tech——新容器保持 0.0.0.0:9200 绑定即**零 frp 改动**
+  （台账原担心的"必须同步改 frp"在保持端口绑定的前提下不需要）
+- 切换：9201 并行验证 → 停旧 → 9200 → **6 秒恢复**，公网 200（frp 链路实测）
+- 测试：SQLite 内存库（StaticPool，无需 MySQL job）；test-apt-packages:
+  fonts-noto-cjk（海报渲染中文字体，存量 CI 同款依赖）
+- 坑：`git commit -am` 不包含新文件——backend-cd.yml 首次漏提（workflow 未注册），
+  补提解决；新文件必须显式 git add
+- 旧容器：pymall-api-intranet 已 stop 未 down
