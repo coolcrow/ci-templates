@@ -24,7 +24,7 @@
 | 3 | polystudio | /home/coz/polystudio | 单后端 | 127.0.0.1:8310 | ★ | ✅ 2026-08-27 |
 | 4 | name_culture | /home/coz/name_culture | 后端+redis | 127.0.0.1:8500 | ★★ | ✅ 2026-08-28 |
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ✅ 2026-08-28 |
-| 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ⬜ |
+| 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ✅ 2026-08-28 |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ⬜ |
 | 8 | portrait | /home/coz/portrait | 后端+celery+mysql+redis | 0.0.0.0:8200 | ★★★ 自带 mysql | ⬜ |
 | 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
@@ -152,3 +152,26 @@
 - 坑：`git commit -am` 不包含新文件——backend-cd.yml 首次漏提（workflow 未注册），
   补提解决；新文件必须显式 git add
 - 旧容器：pymall-api-intranet 已 stop 未 down
+
+### weixin-article-publisher 迁移备忘（2026-08-28 完成，3 秒切换）
+
+- 仓库：coolcrow/weixin-article-publisher（新建私有仓库 + git 化，242 文件）
+- Dokploy：project=weixin-article-publisher / composeId=hT_tLf9G8cUZoq9SNYeqL
+- 双服务：publisher（构建型，源码根目录）+ dailyhot（imsyy/dailyhot-api 现成镜像，
+  容器网络 DNS 互访 http://dailyhot:6688）
+- **无 frp**：纯内网服务，Chrome 扩展（extension/ 源码在仓库）经
+  http://192.168.31.114:8001 直连，保持 0.0.0.0 绑定即零改动
+- MySQL：host.docker.internal（host-gateway）→ 宿主 mysql-shared，
+  extra_hosts 保持原配置零改动；whisper 死 URL（deferred）保持原样
+- 切换：8002 并行验证（health + dailyhot 网络互通）→ 停旧双容器 → 8001
+  → **3 秒恢复**
+- 测试：conftest 增加 TEST_DB_URL 解析（中央模板 MySQL job 约定，同 inven-monitor），
+  测试库 article_app_test；needs-mysql: true
+- 坑①：Dockerfile `COPY .env .` 在 CI 必挂（.env 被 gitignore）——改 `.env*` 通配，
+  运行期配置以容器 env 为准
+- 坑②：ssh heredoc 嵌套引号会被 shell 吃掉引号导致脚本挂（且 git add 在补丁失败后
+  仍执行，把 extension.pem 私钥暂存了，幸未提交）——多行补丁一律走本地编辑 + scp
+- ⚠️ 安全备注：JWT_SECRET=your-jwt-secret-change-me（弱占位符）在生产运行，
+  建议轮换（会使现有登录 token 失效，需用户择机操作）
+- 独立容器 dailyhotapi（0.0.0.0:6688）不属于本 compose，未动
+- 旧 compose：已 stop 未 down（publisher+dailyhot 双容器）
