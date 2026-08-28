@@ -193,8 +193,11 @@
   列集 + 种子/断言从 amount 迁到 cash/coach_cash 语义
 - pyproject 修复：setuptools 显式包发现（app*，多顶层目录下 pip install . 必炸）
   + fakeredis 移入主依赖（测试容器直跑）
-- ⚠️ 代理遗留：服务器 git 全局代理已配（Mac Allow LAN 已开），但 runner job
-  容器的 HOME 机制（_temp/_github_home 每次重建）使 checkout 偶发不继承代理
-  配置、直连仍会撞夜间/白天劣化窗口——checkout 失败重跑即可，总解决方案待定
+- ✅ 代理方案（08-28 定稿）：三层覆盖——①宿主侧 ~/.gitconfig + /etc/gitconfig；
+  ②runner 容器侧由中央模板注入 job env HTTPS_PROXY/HTTP_PROXY/NO_PROXY（263f383，
+  容器内 git/pip 确定性走代理，不依赖 runner 的 HOME/gitconfig 拷贝机制——该机制
+  时灵时不灵，job env 是唯一可靠注入通道）；③验证运行 33143189447 全绿且日志
+  实锤 env 已注入 step 环境。前提是 Mac 代理在线——CI 只在 push 后运行而 push
+  必然来自开着的 Mac，天然满足；Mac 换 IP 需改模板 proxy 默认值（建议绑静态 IP）
 - 数据：static bind mount（1.8M）零拷贝；MySQL 专用账号 hd@mysql-shared
 - 旧 compose：已 stop 未 down（api/worker/beat/redis 四容器）
