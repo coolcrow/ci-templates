@@ -250,3 +250,17 @@ polystudio_storage_data / captureli-license_license_data）、旧容器全部清
 - polystudio_polystudio_internal：ps-frpc + 新 backend 在用（frp 链路依赖，保留即正确）
 - portrait_default：被孤儿 portrait-mysql-1 占用（孤儿清理后自动可删）
 **迁移战役 9/9 完成。**
+
+### corps_portal 官网接入（2026-08-28，CI/CD 平台第 10 个项目）
+
+- 仓库：coolcrow/corps_portal（原纯本地仓库，建远程 + WIP 一并提交对齐线上——
+  线上已含第 6 款产品 pymall，git 落后会导致首部署回退）
+- 部署目标：CVM ubuntu@43.139.120.168:/var/www/corps_portal（nginx 静态托管
+  www.aibolt.tech，Next.js `output: 'export'` 静态导出）
+- 流水线：GH-hosted 构建 → tar → scp → **CVM 原子切换**（sudo mv + chown
+  交还 ubuntu）→ 公网 version.txt 验证
+- Secrets：CVM_HOST / CVM_USER / CVM_SSH_KEY（Mac id_rsa 注入）
+- 首次自动部署 7014ade 已验证；**此后改官网 = push main 即发布**
+- 坑：/var/www 为 root 属主，ubuntu 的 mv/mkdir 被拒（手动 deploy.sh 只
+  rsync 进子目录从未触发）——切换步骤带 sudo 解决
+- 原手动部署入口 deploy/deploy.sh 保留可用（紧急绕开 CI 时用）
