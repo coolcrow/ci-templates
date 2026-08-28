@@ -29,7 +29,7 @@
 | 5 | pymall-intranet | /home/coz/pymall | 单后端 | 0.0.0.0:9200 | ★★ 有 frpc | ✅ 2026-08-28 |
 | 6 | weixin-article-publisher | /home/coz/weixin-article-publisher | publisher+dailyhot | 0.0.0.0:8001 | ★★ | ✅ 2026-08-28 |
 | 7 | home-delivery | /home/coz/home-delivery | api+celery×2+redis | 0.0.0.0:8100 | ★★★ celery | ✅ 2026-08-28 |
-| 8 | portrait | /home/coz/portrait | 后端+celery+redis | 0.0.0.0:8200 | ★★ | ⬜ |
+| 8 | portrait | /home/coz/portrait | 后端+celery+redis | 0.0.0.0:8200 | ★★ | ✅ 2026-08-28 |
 | 9 | mysql-shared | /home/coz/mysql-shared | 共享 MySQL | 3306/3307 | ★★★ 依赖方多 | ⬜ 最后 |
 
 ## 独立容器（非 compose，需逐一确认归属）
@@ -201,3 +201,22 @@
   必然来自开着的 Mac，天然满足；Mac 换 IP 需改模板 proxy 默认值（建议绑静态 IP）
 - 数据：static bind mount（1.8M）零拷贝；MySQL 专用账号 hd@mysql-shared
 - 旧 compose：已 stop 未 down（api/worker/beat/redis 四容器）
+
+### portrait 迁移备忘（2026-08-28 完成，9 秒切换）
+
+- 仓库：coolcrow/portrait（新建私有仓库 + git 化，89 文件）
+- Dokploy：project=portrait / composeId=GpJ4G_p6iUEfXYxjUCatL
+- 三服务：backend（uvicorn 2 workers）+ celery-worker（concurrency=2）+ redis
+  （127.0.0.1:6381，无 beat——比 home-delivery 简单一档）
+- 数据：insightface_models 外部卷 601M 零拷贝挂载（并行阶段已验证容器内可见）；
+  DB 在共享实例（9 表 0.3MB，root 账号）
+- frp：frpc-hd 127.0.0.1:8200 → CVM 8091 → portrait.aibolt.tech，保持绑定零改动
+- 切换：8201 并行验证 → 停旧三容器 → 8200 + redis 6381 → **9 秒恢复**，公网 200
+- 测试：项目此前**无测试**——新建冒烟测试（import app.main 验证依赖链）+
+  conftest（env 兜底 + **sys.path 注入 backend/**：pytest prepend 只插 tests/，
+  app 包必须手动入 path，home-delivery 同款必备项）+ pytest.ini
+- 敏感文件 admin_credentials.txt（含明文管理员密码）已 gitignore 未入库
+- test-apt-packages: build-essential libgl1 libglib2.0（insightface 原生依赖）
+- 待清理：孤儿 portrait-mysql-1（零表空壳，运行中）+ portrait_mysql_data 卷
+  （200MB）+ 已 stop 的旧 compose 三容器——需用户确认后执行
+- 旧 compose：已 stop 未 down（backend/celery-worker/redis）
