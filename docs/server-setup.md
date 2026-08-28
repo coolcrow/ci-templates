@@ -78,4 +78,6 @@
 2. ~~ghcr registry 凭证~~ ✅（ghcr-coolcrow，PAT 已配）
 3. 按 migration-inventory.md 顺序逐个迁移项目（captureli-license 已完成 ✅）
 4. 全部迁移完成后：`apt purge apache2` 清理残留
-5. 建议整改：polystudio git remote 里的全权限 PAT 轮换（已在服务器 ~/github-pat 留档）
+5. ~~建议整改：polystudio git remote 里的全权限 PAT 轮换~~ ✅ 已完成（08-28）：
+   旧全权限 PAT 已吊销；服务器 ~/github-pat 更换为**细粒度最小权限 token**
+   （仅 Contents RW、限定 10 个部署仓），读写已实测验证。
