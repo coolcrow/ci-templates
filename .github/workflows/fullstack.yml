@@ -71,6 +71,11 @@ on:
         required: false
         type: string
         default: ""
+      proxy:
+        description: "self-hosted runner 访问 github 的代理（测试 job 容器内 checkout/pip 用；空=直连）"
+        required: false
+        type: string
+        default: "http://192.168.31.98:7897"
     secrets:
       DEPLOY_WEBHOOK_TOKEN:
         description: "Dokploy webhook 鉴权 token（如面板启用鉴权）"
@@ -90,6 +95,12 @@ jobs:
     runs-on: ${{ inputs.runner }}
     container:
       image: python:3.12
+    # workflow env 会以 -e 注入 job 容器——容器内 git/curl/pip 确定性走代理，
+    # 不依赖 runner 的 HOME/gitconfig 拷贝机制（该机制时灵时不灵）
+    env:
+      HTTPS_PROXY: ${{ inputs.proxy }}
+      HTTP_PROXY: ${{ inputs.proxy }}
+      NO_PROXY: localhost,127.0.0.1,192.168.31.0/24
     steps:
       - uses: actions/checkout@v4
 
@@ -124,6 +135,10 @@ jobs:
     runs-on: ${{ inputs.runner }}
     container:
       image: python:3.12
+    env:
+      HTTPS_PROXY: ${{ inputs.proxy }}
+      HTTP_PROXY: ${{ inputs.proxy }}
+      NO_PROXY: localhost,127.0.0.1,192.168.31.0/24
     services:
       mysql:
         image: mysql:8.0
@@ -170,6 +185,10 @@ jobs:
     runs-on: ${{ inputs.runner }}
     container:
       image: node:20
+    env:
+      HTTPS_PROXY: ${{ inputs.proxy }}
+      HTTP_PROXY: ${{ inputs.proxy }}
+      NO_PROXY: localhost,127.0.0.1,192.168.31.0/24
     steps:
       - uses: actions/checkout@v4
 
