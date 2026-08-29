@@ -71,6 +71,11 @@ on:
         required: false
         type: string
         default: ""
+      skip-tests:
+        description: "跳过测试直接构建部署（项目测试基建未就绪时的过渡方案）"
+        required: false
+        type: boolean
+        default: false
       proxy:
         description: "self-hosted runner 访问 github 的代理（测试 job 容器内 checkout/pip 用；空=直连）"
         required: false
@@ -91,7 +96,7 @@ env:
 jobs:
   test-backend:
     name: 后端测试
-    if: inputs.has-backend && !inputs.needs-mysql
+    if: inputs.has-backend && !inputs.needs-mysql && !inputs.skip-tests
     runs-on: ${{ inputs.runner }}
     container:
       image: python:3.12
@@ -131,7 +136,7 @@ jobs:
 
   test-backend-mysql:
     name: 后端测试（含 MySQL）
-    if: inputs.has-backend && inputs.needs-mysql
+    if: inputs.has-backend && inputs.needs-mysql && !inputs.skip-tests
     runs-on: ${{ inputs.runner }}
     container:
       image: python:3.12
