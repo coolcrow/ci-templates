@@ -289,6 +289,25 @@ paths 条件触发**（改后端不碰前端、反之亦然）；portrait 前端
 坑（新增）：web/ 类目录加入仓库必给 pyproject 补 `[tool.setuptools.packages.find]`；
 deploy workflow 的 paths 过滤改动自身文件会触发一次过渡部署（一次性成本）。
 
+### tokensuit 接入（2026-08-29，CI/CD 平台第 11 个项目）
+
+- 仓库：coolcrow/tokensuit（新建私有仓库 + git 化，204 文件）
+- Dokploy：project=tokensuit / composeId=Ik5-nSc3Un90i84nhSi0M
+- 六服务：gateway×2 副本（healthcheck）+ console + worker + redis（AOF + 密码
+  + noeviction 256mb）+ web（nginx 静态 + 反代 console），同一镜像不同 command
+- MySQL：共享实例（13 表，root 账号）；Redis 独立带密码 + AOF 持久化
+- skip-tests: true——Python 3.14 + uv.lock + 真实 Redis/Mongo 测试基建与中央
+  模板不兼容，先跑构建→部署链路，测试入 CI 待项目稳定后适配
+- 坑①：Dokploy compose 漏 redis 服务的 `environment: REDIS_PASSWORD` 声明
+  → healthcheck 读不到密码 → 全栈起不来
+- 坑②：REDIS_URL 用旧容器名 `tokensuit-redis` 做 hostname → Dokploy 网络
+  DNS 名是 `redis`（compose 服务名）→ worker 反复 restart
+- 坑③：细粒度 token 缺 `workflows` scope → 无法推 workflow 文件到 GitHub
+  → 走 Mac OAuth（gh CLI）推送解决；后续可给 token 补该权限
+- 独立容器保留：tokensuit-frpc（隧道）、tokensuit-one-api（API 聚合）、
+  tokensuit-mock-upstream（负载测试）——不属于 compose 范围
+- 中央模板新增：`skip-tests` 输入（测试基建未就绪项目的过渡方案）
+
 ### 技术债四项清偿（2026-08-29 全部完成）
 
 - ✅ **bootstrap Multiple rows 根因修复**：brand_store 表 (demo品牌, 示例门店)
