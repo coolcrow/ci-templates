@@ -288,3 +288,18 @@ paths 条件触发**（改后端不碰前端、反之亦然）；portrait 前端
 
 坑（新增）：web/ 类目录加入仓库必给 pyproject 补 `[tool.setuptools.packages.find]`；
 deploy workflow 的 paths 过滤改动自身文件会触发一次过渡部署（一次性成本）。
+
+### 技术债四项清偿（2026-08-29 全部完成）
+
+- ✅ **bootstrap Multiple rows 根因修复**：brand_store 表 (demo品牌, 示例门店)
+  存在 3 行重复（无唯一约束 + 历史多次重启各插一行）→ scalar_one_or_none 必炸
+  → bootstrap 整体跳过。修复 = 幂等去重（保留最早行清理重复），部署后日志实证
+  "清理 2 行重复"。附带：loguru 不认 stdlib 的 exc_info，traceback 需用
+  logger.exception()
+- ✅ **from_store 租户类型校验**：员工注册路径加 tenant_type != store 拒绝
+  （原传品牌 id 会把员工建进品牌租户）；xfail 解除，测试转正通过
+- ✅ **测试性能**：conftest 清理从逐表 TRUNCATE（每表一次 DDL+fsync，
+  671×45≈3 万次造成 IO 风暴，极端时 45 分钟）改为**单事务批量 DELETE**
+  （整个清理一次落盘），实测测试 job 稳定 430 秒
+- ✅ **3307 端口收敛**：Dokploy mysql compose 移除 3307 映射（查明无服务
+  依赖，仅外部管理端曾用），重建后应用连接无感
