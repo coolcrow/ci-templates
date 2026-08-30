@@ -322,3 +322,17 @@ deploy workflow 的 paths 过滤改动自身文件会触发一次过渡部署（
   （整个清理一次落盘），实测测试 job 稳定 430 秒
 - ✅ **3307 端口收敛**：Dokploy mysql compose 移除 3307 映射（查明无服务
   依赖，仅外部管理端曾用），重建后应用连接无感
+
+## seal 图片盖章工具接入（2026-08-30，CI/CD 平台第 12 个项目）
+
+- 仓库：coolcrow/seal（单文件纯前端静态站，index.html 内嵌 pdf.js，~1.9MB）
+- 部署目标：CVM ubuntu@43.139.120.168:/home/ubuntu/seal（nc_nginx 挂载
+  /usr/share/nginx/html/seal:ro，容器已用原镜像 sha 重建加挂载，带回滚验证）
+- 域名：seal.aibolt.tech（A → 43.139.120.168，Let's Encrypt HTTP-01，
+  acme.sh install-cert 到 name_culture/nginx/certs/seal-*.pem，自动续期已挂 reloadcmd）
+- 流水线：deploy-static.yml——GH-hosted，scp 到 ~/seal/.new 后同目录 mv 原子替换
+  （单文件站不做目录级切换），验证 = 服务器 md5 + 公网 version.txt 双重比对
+- Secrets：CVM_HOST / CVM_USER / CVM_SSH_KEY（同 corps_portal 三件）
+- 坑：GH-hosted runner 的 ~/.ssh 属 root，密钥必须写 $RUNNER_TEMP；
+  坑：d2d-subdomains 证书是三商户多 SAN 而非泛域名——新 *.d2d 站点不能直接复用
+- 教训：多行远程脚本经 ssh heredoc 写入时 \n 会被写字面字符——用 python chr(10) 生成
