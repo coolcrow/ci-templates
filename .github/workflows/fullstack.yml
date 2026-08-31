@@ -215,6 +215,7 @@ jobs:
     needs: [test-backend, test-backend-mysql, test-frontend]
     if: always() && inputs.has-backend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 25
     permissions:
       contents: read
       packages: write
@@ -273,6 +274,7 @@ jobs:
     needs: [test-backend, test-backend-mysql, test-frontend]
     if: always() && inputs.has-frontend && !failure() && !cancelled()
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 25
     permissions:
       contents: read
       packages: write
