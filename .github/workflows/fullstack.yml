@@ -16,6 +16,11 @@ on:
         description: "部署环境：staging | production"
         required: true
         type: string
+      buildx-proxy:
+        description: "buildkit 构建器代理（如 http://192.168.31.98:7897），空=不走代理"
+        required: false
+        type: string
+        default: ""
       has-backend:
         description: "是否构建/测试后端"
         required: false
@@ -232,12 +237,24 @@ jobs:
               -o "${{ inputs.backend-path }}/Dockerfile"
           fi
 
+      - name: 准备 buildx 代理（可选）
+        if: inputs.buildx-proxy != ''
+        run: |
+          {
+            echo "BUILDX_DRIVER_OPTS<<EOF"
+            echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.NO_PROXY=localhost,127.0.0.1,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn,docker.m.daocloud.io"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner == 'self-hosted'
         with:
           config-inline: |
             [registry."docker.io"]
               mirrors = ["docker.m.daocloud.io"]
+          driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
 
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner != 'self-hosted'
@@ -298,12 +315,24 @@ jobs:
               -o "${{ inputs.frontend-path }}/nginx.conf"
           fi
 
+      - name: 准备 buildx 代理（可选）
+        if: inputs.buildx-proxy != ''
+        run: |
+          {
+            echo "BUILDX_DRIVER_OPTS<<EOF"
+            echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.NO_PROXY=localhost,127.0.0.1,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn,docker.m.daocloud.io"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner == 'self-hosted'
         with:
           config-inline: |
             [registry."docker.io"]
               mirrors = ["docker.m.daocloud.io"]
+          driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
 
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner != 'self-hosted'
