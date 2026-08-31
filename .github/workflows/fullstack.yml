@@ -244,7 +244,6 @@ jobs:
             echo "BUILDX_DRIVER_OPTS<<EOF"
             echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
             echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
-            echo "env.NO_PROXY=localhost,127.0.0.1,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn,docker.m.daocloud.io"
             echo "EOF"
           } >> "$GITHUB_ENV"
 
@@ -322,7 +321,6 @@ jobs:
             echo "BUILDX_DRIVER_OPTS<<EOF"
             echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
             echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
-            echo "env.NO_PROXY=localhost,127.0.0.1,mirrors.tuna.tsinghua.edu.cn,pypi.tuna.tsinghua.edu.cn,docker.m.daocloud.io"
             echo "EOF"
           } >> "$GITHUB_ENV"
 
