@@ -10,6 +10,13 @@
 | dokploy | Swarm service (manager 约束) | dokploy/dokploy:latest | 3000（面板） |
 | dokploy-postgres | Swarm service (manager 约束) | postgres:16 | 仅集群内 |
 | dokploy-traefik | 独立容器 (--restart always) | traefik:v3.6.7 | 80/443 |
+| registry-mirror | 独立容器 (--restart unless-stopped) | registry:2 | 5001（docker.io 穿透缓存） |
+
+- registry-mirror：**全平台 CI 构建的关键依赖**（2026-09-02 daocloud 公共镜像源对匿名请求 401 死亡后上线）。
+  配置 `~/registry-mirror/config.yml`（proxy.remoteurl=registry-1.docker.io），容器带
+  `HTTP_PROXY/HTTPS_PROXY=http://192.168.31.98:7897` 拉上游，blob 缓存在卷 `registry-mirror-data`。
+  buildkitd/daemon 经 `http://192.168.31.114:5001` 匿名访问（LAN 内，需 http=true）。
+  **勿当无名容器清理**；删除 = 全平台 FROM docker.io 的构建瘫痪。
 
 - 数据目录：`/etc/dokploy`（traefik 配置、应用配置）
 - 密钥：Docker Secrets（dokploy_postgres_password / dokploy_auth_secret），未落明文
@@ -20,6 +27,7 @@
 - Docker daemon：systemd enabled，重启自动拉起
 - Swarm services（dokploy/postgres）：随 daemon 自动恢复
 - traefik：`--restart always`
+- registry-mirror：`--restart unless-stopped`（独立容器，随 daemon 自动恢复）
 - **apache2 已 stop + disable**（原占 80 端口的默认空站点，确认无业务后清除，
   配置仍在 /etc/apache2，如需回滚 `systemctl enable --now apache2`）
 
@@ -28,6 +36,7 @@
 - 80/443：Dokploy Traefik（新部署项目的统一入口）
 - 8100-9200 段：存量 docker-compose 项目（迁移一个释放一个）
 - 3000：Dokploy 面板；3306/3307：mysql-shared（待收敛）
+- 5001：registry-mirror（docker.io 穿透缓存，CI buildx / daemon 拉流专用）
 
 ## REST API（已验证可用）
 
@@ -50,8 +59,10 @@
 
 | 问题 | 解法 |
 |---|---|
-| setup-python/node 工具下载极慢（50KB/s） | 测试改为容器内运行（python:3.12 / node:20），镜像走 daemon 的 daocloud 加速 |
-| buildx 容器不继承 daemon mirror，FROM docker.io 超时 | setup-buildx-action 传 config-inline：docker.io → docker.m.daocloud.io |
+| setup-python/node 工具下载极慢（50KB/s） | 测试改为容器内运行（python:3.12 / node:20），daemon 拉取（daocloud 死后自动回退 daemon 代理直连，实测可用） |
+| buildx 容器不继承 daemon mirror，FROM docker.io 超时 | setup-buildx-action 传 config-inline：docker.io → `192.168.31.114:5001`（自建 LAN registry-mirror；2026-09-02 daocloud 对匿名请求 401 死亡，公共镜像源全灭） |
+| buildkitd 的 token 拉取器不走 env 代理（driver-opts `env.HTTPS_PROXY` 无效，v0.17/0.19/0.23 实测直连被污染 IP 超时） | 唯一可靠路径 = LAN registry-mirror；env 代理仅对 RUN 步骤内的 pip 等外联有用 |
+| daemon.json 仍残留已死的 daocloud mirror | 拉取实测可回退 daemon 代理直连（hello-world OK）；清理需 root，非紧急 |
 | 容器内测试以 root 落盘，宿主 job 无法 checkout | 测试 job 末尾 `chmod -R a+rwX .` |
 | pip/npm 慢 | runner=self-hosted 时自动切清华 pip 源 / npmmirror |
 | git push github.com 偶发 TLS/超时 | 重试即可（脚本内置 5 次重试） |
