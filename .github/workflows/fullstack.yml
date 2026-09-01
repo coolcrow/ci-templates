@@ -237,22 +237,23 @@ jobs:
               -o "${{ inputs.backend-path }}/Dockerfile"
           fi
 
-      - name: 准备 buildx 代理（可选）
-        if: inputs.buildx-proxy != ''
+      - name: 准备 buildx 代理（self-hosted 默认 LAN 代理直连 docker.io）
+        if: inputs.runner == 'self-hosted'
         run: |
+          PROXY="${{ inputs.buildx-proxy }}"
+          if [ -z "$PROXY" ]; then
+            PROXY="http://192.168.31.98:7897"
+          fi
           {
             echo "BUILDX_DRIVER_OPTS<<EOF"
-            echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
-            echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.HTTPS_PROXY=$PROXY"
+            echo "env.HTTP_PROXY=$PROXY"
             echo "EOF"
           } >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner == 'self-hosted'
         with:
-          config-inline: |
-            [registry."docker.io"]
-              mirrors = ["docker.m.daocloud.io"]
           driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
 
       - uses: docker/setup-buildx-action@v3
@@ -314,22 +315,23 @@ jobs:
               -o "${{ inputs.frontend-path }}/nginx.conf"
           fi
 
-      - name: 准备 buildx 代理（可选）
-        if: inputs.buildx-proxy != ''
+      - name: 准备 buildx 代理（self-hosted 默认 LAN 代理直连 docker.io）
+        if: inputs.runner == 'self-hosted'
         run: |
+          PROXY="${{ inputs.buildx-proxy }}"
+          if [ -z "$PROXY" ]; then
+            PROXY="http://192.168.31.98:7897"
+          fi
           {
             echo "BUILDX_DRIVER_OPTS<<EOF"
-            echo "env.HTTPS_PROXY=${{ inputs.buildx-proxy }}"
-            echo "env.HTTP_PROXY=${{ inputs.buildx-proxy }}"
+            echo "env.HTTPS_PROXY=$PROXY"
+            echo "env.HTTP_PROXY=$PROXY"
             echo "EOF"
           } >> "$GITHUB_ENV"
 
       - uses: docker/setup-buildx-action@v3
         if: inputs.runner == 'self-hosted'
         with:
-          config-inline: |
-            [registry."docker.io"]
-              mirrors = ["docker.m.daocloud.io"]
           driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
 
       - uses: docker/setup-buildx-action@v3
