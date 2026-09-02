@@ -45,6 +45,7 @@
 - 已确认路由：project / application / registry / server / user / deployment / domain
 - 交互式文档 `/api/reference` 需浏览器会话（面板登录后访问）
 - 用途：程序化建 project/application、写环境变量、触发部署、回滚——迁移操作全部走 API，不碰 UI
+- compose 环境变量读写：`POST /api/compose.update`（传 composeId 返回全量对象含解密 env；回传完整对象+改后 env 即更新）；部署 `POST /api/compose.deploy`。注意 compose 表 env 列为 enc:v1 加密存储，不能直改数据库；且容器环境变量优先级高于镜像内 env.defaults
 
 ## Self-hosted Runner（部署服务器内网，GitHub 托管 runner 无法回调）
 
