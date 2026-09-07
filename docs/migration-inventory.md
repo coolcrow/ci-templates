@@ -308,6 +308,19 @@ deploy workflow 的 paths 过滤改动自身文件会触发一次过渡部署（
   tokensuit-mock-upstream（负载测试）——不属于 compose 范围
 - 中央模板新增：`skip-tests` 输入（测试基建未就绪项目的过渡方案）
 
+## 分层发布（2026-08-29 实施，9 项目全覆盖）
+
+**用法**：
+- push `dev` → 快速通道（跳过测试，直接构建+部署，~1 分钟）
+- push `main` → 完整流水线（测试全绿才发，~5-18 分钟）
+- 日常迭代在 dev 分支，确认稳定后 `git checkout main && git merge dev && git push`
+
+**实现**：每项目 `.github/workflows/deploy-dev.yml`（push dev 分支触发，
+使用中央模板 + `skip-tests: true`，部署到同一 composeId），dev 分支已创建。
+
+**适用项目**（9 个）：inven-monitor / PolyStudio / name_culture / pymall /
+weixin-article-publisher / home-delivery / portrait / captureli-license / tokensuit
+
 ### 技术债四项清偿（2026-08-29 全部完成）
 
 - ✅ **bootstrap Multiple rows 根因修复**：brand_store 表 (demo品牌, 示例门店)
@@ -322,17 +335,3 @@ deploy workflow 的 paths 过滤改动自身文件会触发一次过渡部署（
   （整个清理一次落盘），实测测试 job 稳定 430 秒
 - ✅ **3307 端口收敛**：Dokploy mysql compose 移除 3307 映射（查明无服务
   依赖，仅外部管理端曾用），重建后应用连接无感
-
-## seal 图片盖章工具接入（2026-08-30，CI/CD 平台第 12 个项目）
-
-- 仓库：coolcrow/seal（单文件纯前端静态站，index.html 内嵌 pdf.js，~1.9MB）
-- 部署目标：CVM ubuntu@43.139.120.168:/home/ubuntu/seal（nc_nginx 挂载
-  /usr/share/nginx/html/seal:ro，容器已用原镜像 sha 重建加挂载，带回滚验证）
-- 域名：seal.aibolt.tech（A → 43.139.120.168，Let's Encrypt HTTP-01，
-  acme.sh install-cert 到 name_culture/nginx/certs/seal-*.pem，自动续期已挂 reloadcmd）
-- 流水线：deploy-static.yml——GH-hosted，scp 到 ~/seal/.new 后同目录 mv 原子替换
-  （单文件站不做目录级切换），验证 = 服务器 md5 + 公网 version.txt 双重比对
-- Secrets：CVM_HOST / CVM_USER / CVM_SSH_KEY（同 corps_portal 三件）
-- 坑：GH-hosted runner 的 ~/.ssh 属 root，密钥必须写 $RUNNER_TEMP；
-  坑：d2d-subdomains 证书是三商户多 SAN 而非泛域名——新 *.d2d 站点不能直接复用
-- 教训：多行远程脚本经 ssh heredoc 写入时 \n 会被写字面字符——用 python chr(10) 生成
