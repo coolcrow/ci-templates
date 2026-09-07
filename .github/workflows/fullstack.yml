@@ -274,8 +274,10 @@ jobs:
         with:
           context: ${{ inputs.backend-path }}
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # gha 缓存仅对 GH 托管 runner 有价值；self-hosted 持久 builder 自带层缓存，
+          # gha import 经国内代理实测 617s（镜像层本就 CACHED、ghcr 增量推送仅 6s）
+          cache-from: ${{ inputs.runner != 'self-hosted' && 'type=gha' || '' }}
+          cache-to: ${{ inputs.runner != 'self-hosted' && 'type=gha,mode=max' || '' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
@@ -287,7 +289,7 @@ jobs:
         if: inputs.runner == 'self-hosted'
         working-directory: ${{ inputs.backend-path }}
         run: >-
-          docker buildx build --load --cache-from type=gha
+          docker buildx build --load
           -t ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
           .
 
@@ -357,8 +359,8 @@ jobs:
         with:
           context: ${{ inputs.frontend-path }}
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: ${{ inputs.runner != 'self-hosted' && 'type=gha' || '' }}
+          cache-to: ${{ inputs.runner != 'self-hosted' && 'type=gha,mode=max' || '' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
@@ -368,7 +370,7 @@ jobs:
         if: inputs.runner == 'self-hosted'
         working-directory: ${{ inputs.frontend-path }}
         run: >-
-          docker buildx build --load --cache-from type=gha
+          docker buildx build --load
           -t ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
           .
 
