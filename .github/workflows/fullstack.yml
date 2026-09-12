@@ -242,7 +242,7 @@ jobs:
         run: |
           PROXY="${{ inputs.buildx-proxy }}"
           if [ -z "$PROXY" ]; then
-            PROXY="http://192.168.31.98:7897"
+            PROXY="http://192.168.31.114:7897"
           fi
           echo "PROXY_URL=$PROXY" >> "$GITHUB_ENV"
 
@@ -326,7 +326,7 @@ jobs:
         run: |
           PROXY="${{ inputs.buildx-proxy }}"
           if [ -z "$PROXY" ]; then
-            PROXY="http://192.168.31.98:7897"
+            PROXY="http://192.168.31.114:7897"
           fi
           echo "PROXY_URL=$PROXY" >> "$GITHUB_ENV"
 
