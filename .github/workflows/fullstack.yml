@@ -125,7 +125,7 @@ jobs:
         working-directory: ${{ inputs.backend-path }}
         env:
           # self-hosted（国内服务器）走清华镜像；GitHub 托管 runner 直连 pypi
-          PIP_INDEX_URL: ${{ inputs.runner == 'self-hosted' && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
+          PIP_INDEX_URL: ${{ (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-')) && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
         run: |
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
@@ -173,7 +173,7 @@ jobs:
       - name: 安装依赖并测试 (pytest)
         working-directory: ${{ inputs.backend-path }}
         env:
-          PIP_INDEX_URL: ${{ inputs.runner == 'self-hosted' && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
+          PIP_INDEX_URL: ${{ (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-')) && 'https://pypi.tuna.tsinghua.edu.cn/simple' || 'https://pypi.org/simple' }}
           # 容器 job 内通过服务名访问 MySQL；项目 conftest 需支持 TEST_DB_URL 环境变量覆盖
           TEST_DB_URL: mysql+aiomysql://root:${{ inputs.test-mysql-password }}@mysql:3306/${{ inputs.test-mysql-db }}?charset=utf8mb4
         run: |
@@ -205,7 +205,7 @@ jobs:
       - name: 测试与构建验证
         working-directory: ${{ inputs.frontend-path }}
         env:
-          NPM_CONFIG_REGISTRY: ${{ inputs.runner == 'self-hosted' && 'https://registry.npmmirror.com' || 'https://registry.npmjs.org' }}
+          NPM_CONFIG_REGISTRY: ${{ (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-')) && 'https://registry.npmmirror.com' || 'https://registry.npmjs.org' }}
         run: |
           npm ci
           npm run test --if-present
@@ -238,26 +238,30 @@ jobs:
           fi
 
       - name: 准备 buildx 代理（self-hosted 默认 LAN 代理直连 docker.io）
-        if: inputs.runner == 'self-hosted'
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
         run: |
           PROXY="${{ inputs.buildx-proxy }}"
           if [ -z "$PROXY" ]; then
             PROXY="http://192.168.31.98:7897"
           fi
-          {
-            echo "BUILDX_DRIVER_OPTS<<EOF"
-            echo "env.HTTPS_PROXY=$PROXY"
-            echo "env.HTTP_PROXY=$PROXY"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          echo "PROXY_URL=$PROXY" >> "$GITHUB_ENV"
+
+      # 持久命名 builder：层缓存跨任务复用。临时 builder 每任务从 GHCR 重拉
+      # ~300MB 基础镜像层（docker-container builder 不共享 daemon 镜像缓存），
+      # 代理慢时构建 4~20 分钟；持久化后仅首建付费，后续全部 CACHED。
+      - name: 准备持久 buildx builder（层缓存跨任务复用）
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
+        run: |
+          OPTS=""
+          if [ -n "${PROXY_URL:-}" ]; then
+            OPTS="--driver-opt env.HTTPS_PROXY=${PROXY_URL} --driver-opt env.HTTP_PROXY=${PROXY_URL}"
+          fi
+          docker buildx inspect shared >/dev/null 2>&1 \
+            || docker buildx create --name shared --driver docker-container $OPTS
+          docker buildx use shared
 
       - uses: docker/setup-buildx-action@v3
-        if: inputs.runner == 'self-hosted'
-        with:
-          driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
-
-      - uses: docker/setup-buildx-action@v3
-        if: inputs.runner != 'self-hosted'
+        if: (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-'))
 
       - uses: docker/login-action@v3
         with:
@@ -271,8 +275,8 @@ jobs:
           push: true
           # gha 缓存仅对 GH 托管 runner 有价值；self-hosted 持久 builder 自带层缓存，
           # gha import 经国内代理实测 617s（镜像层本就 CACHED、ghcr 增量推送仅 6s）
-          cache-from: ${{ inputs.runner != 'self-hosted' && 'type=gha' || '' }}
-          cache-to: ${{ inputs.runner != 'self-hosted' && 'type=gha,mode=max' || '' }}
+          cache-from: ${{ (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-')) && 'type=gha' || '' }}
+          cache-to: ${{ (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-')) && 'type=gha,mode=max' || '' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-backend:${{ inputs.environment }}-latest
@@ -281,7 +285,7 @@ jobs:
       # 构建后直接把镜像 load 进本机 daemon —— Dokploy 的 pull_policy:always 拉取时
       # 全部层 Already exists，部署从小时级降到秒级。第二次 build 命中本地缓存，代价仅镜像导出的时间。
       - name: 预热部署机本地镜像缓存
-        if: inputs.runner == 'self-hosted'
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
         working-directory: ${{ inputs.backend-path }}
         run: >-
           docker buildx build --load
@@ -318,26 +322,30 @@ jobs:
           fi
 
       - name: 准备 buildx 代理（self-hosted 默认 LAN 代理直连 docker.io）
-        if: inputs.runner == 'self-hosted'
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
         run: |
           PROXY="${{ inputs.buildx-proxy }}"
           if [ -z "$PROXY" ]; then
             PROXY="http://192.168.31.98:7897"
           fi
-          {
-            echo "BUILDX_DRIVER_OPTS<<EOF"
-            echo "env.HTTPS_PROXY=$PROXY"
-            echo "env.HTTP_PROXY=$PROXY"
-            echo "EOF"
-          } >> "$GITHUB_ENV"
+          echo "PROXY_URL=$PROXY" >> "$GITHUB_ENV"
+
+      # 持久命名 builder：层缓存跨任务复用。临时 builder 每任务从 GHCR 重拉
+      # ~300MB 基础镜像层（docker-container builder 不共享 daemon 镜像缓存），
+      # 代理慢时构建 4~20 分钟；持久化后仅首建付费，后续全部 CACHED。
+      - name: 准备持久 buildx builder（层缓存跨任务复用）
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
+        run: |
+          OPTS=""
+          if [ -n "${PROXY_URL:-}" ]; then
+            OPTS="--driver-opt env.HTTPS_PROXY=${PROXY_URL} --driver-opt env.HTTP_PROXY=${PROXY_URL}"
+          fi
+          docker buildx inspect shared >/dev/null 2>&1 \
+            || docker buildx create --name shared --driver docker-container $OPTS
+          docker buildx use shared
 
       - uses: docker/setup-buildx-action@v3
-        if: inputs.runner == 'self-hosted'
-        with:
-          driver-opts: ${{ env.BUILDX_DRIVER_OPTS }}
-
-      - uses: docker/setup-buildx-action@v3
-        if: inputs.runner != 'self-hosted'
+        if: (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-'))
 
       - uses: docker/login-action@v3
         with:
@@ -349,15 +357,15 @@ jobs:
         with:
           context: ${{ inputs.frontend-path }}
           push: true
-          cache-from: ${{ inputs.runner != 'self-hosted' && 'type=gha' || '' }}
-          cache-to: ${{ inputs.runner != 'self-hosted' && 'type=gha,mode=max' || '' }}
+          cache-from: ${{ (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-')) && 'type=gha' || '' }}
+          cache-to: ${{ (startsWith(inputs.runner, 'ubuntu-') || startsWith(inputs.runner, 'macos-') || startsWith(inputs.runner, 'windows-')) && 'type=gha,mode=max' || '' }}
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ inputs.project-name }}-frontend:${{ inputs.environment }}-latest
 
       # 同 build-backend：预热本机 daemon，规避 ghcr.io 国内拉取停滞
       - name: 预热部署机本地镜像缓存
-        if: inputs.runner == 'self-hosted'
+        if: (!startsWith(inputs.runner, 'ubuntu-') && !startsWith(inputs.runner, 'macos-') && !startsWith(inputs.runner, 'windows-'))
         working-directory: ${{ inputs.frontend-path }}
         run: >-
           docker buildx build --load
