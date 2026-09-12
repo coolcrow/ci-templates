@@ -17,7 +17,7 @@ on:
         required: true
         type: string
       buildx-proxy:
-        description: "buildkit 构建器代理（如 http://192.168.31.98:7897），空=不走代理"
+        description: "构建/测试代理（如 http://192.168.31.114:7897），空=不走代理"
         required: false
         type: string
         default: ""
@@ -85,7 +85,7 @@ on:
         description: "self-hosted runner 访问 github 的代理（测试 job 容器内 checkout/pip 用；空=直连）"
         required: false
         type: string
-        default: "http://192.168.31.98:7897"
+        default: "http://192.168.31.114:7897"
     secrets:
       DEPLOY_WEBHOOK_TOKEN:
         description: "Dokploy webhook 鉴权 token（如面板启用鉴权）"
