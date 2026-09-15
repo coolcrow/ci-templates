@@ -335,3 +335,51 @@ weixin-article-publisher / home-delivery / portrait / captureli-license / tokens
   （整个清理一次落盘），实测测试 job 稳定 430 秒
 - ✅ **3307 端口收敛**：Dokploy mysql compose 移除 3307 映射（查明无服务
   依赖，仅外部管理端曾用），重建后应用连接无感
+
+## seal 图片盖章工具（CI/CD 平台第 12 个项目，2026-08-30 接入）
+
+- 仓库：coolcrow/seal（src/ 模板 + build.mjs 零依赖拼装，产物自包含单文件）
+- 部署目标：CVM ubuntu@43.139.120.168:/home/ubuntu/seal（nc_nginx 挂载
+  /usr/share/nginx/html/seal:ro）
+- 域名：seal.aibolt.tech（A → 43.139.120.168，Let's Encrypt HTTP-01，
+  acme.sh install-cert 到 name_culture/nginx/certs/seal-*.pem，自动续期已挂 reloadcmd）
+- 流水线：deploy-static.yml——GH-hosted，scp 到 ~/seal/.tmpdeploy 后逐文件同盘 mv
+  （原子替换），服务端 gzip -9 -k 生成 .gz（nginx gzip_static on 分发，传输量 -66%），
+  验证 = 服务器 md5 + 公网全页面 200 双重比对
+- Secrets：CVM_HOST / CVM_USER / CVM_SSH_KEY（同 corps_portal 三件）
+- 工具集：/stamp/ 盖章（多章/骑缝章/A4拼版/抠图/扫描件增强）、/id-photo/ 证件照、
+  /watermark/ 批量水印、/pdf/ PDF工具（合并/拆分/压缩/转图/图转PDF）
+
+### ⚠️ nc_nginx 容器挂载清单（重建时必须全部包含）
+
+2026-09-15 故障：容器被重建时丢失 seal 挂载 + conf.d 中新增的
+00-server-tokens-off.conf 与主配置 server_tokens 重复导致崩溃。
+**重建 nc_nginx 时必须核对以下全部挂载：**
+
+```bash
+docker run -d --name nc_nginx \
+  --network name_culture_default \
+  -p 80:80 -p 443:443 \
+  --restart unless-stopped \
+  -v /home/ubuntu/landing-site:/usr/share/nginx/html/aibolt-landing:ro \
+  -v /var/www/captureli:/var/www/captureli:ro \
+  -v /home/ubuntu/portrait-h5:/usr/share/nginx/html/portrait:ro \
+  -v /home/ubuntu/name_culture/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \
+  -v /home/ubuntu/name_culture/nginx/conf.d:/etc/nginx/conf.d:ro \
+  -v /home/ubuntu/name_culture/admin-dist:/usr/share/nginx/html/admin:ro \
+  -v /home/ubuntu/inven-monitor/webroot:/usr/share/nginx/html/inven-monitor:ro \
+  -v /home/ubuntu/home-delivery-admin:/usr/share/nginx/html/d2d:ro \
+  -v /home/ubuntu/portrait-admin:/usr/share/nginx/html/portrait-admin:ro \
+  -v /home/ubuntu/name_culture/nginx/certs:/etc/nginx/certs:ro \
+  -v /home/ubuntu/name_culture/h5:/usr/share/nginx/html/h5:ro \
+  -v /home/ubuntu/name_culture/landing:/usr/share/nginx/html/landing:ro \
+  -v /home/ubuntu/seal:/usr/share/nginx/html/seal:ro \
+  $(docker inspect nc_nginx --format '{{.Image}}')
+```
+
+注意事项：
+- conf.d 目录中不得有与主配置 nginx.conf 重复的指令（如 server_tokens）
+- seal 挂载在最后，新增工具时追加到 ~/seal/ 下即可（nginx try_files 自动发现）
+- 重建前先 `docker inspect nc_nginx > /tmp/backup.json` 保存当前配置
+- 坑：GH-hosted runner 的 ~/.ssh 属 root，密钥必须写 $RUNNER_TEMP
+- 坑：d2d-subdomains 证书是三商户多 SAN 而非泛域名——新 *.d2d 站点不能直接复用
