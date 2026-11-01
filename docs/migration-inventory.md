@@ -398,3 +398,11 @@ docker run -d --name nc_nginx \
 - 坑：gh api 调 registration-token 必须 -X POST（默认 GET 返回 404 误报无权限）；
   DOKPLOY_API_URL 变量不带 /api（模板自拼，带 /api 会变 /api/api/ 404）；
   runner 目录 cp 源必须选实体文件布局（weixin 是符号链接布局，cp -a 会复制出指向原目录的假 runner）
+
+### pump_sm 去Mock化：真实组件上线（2026-11-01 晚）
+
+- 两个遗失组件按协议重写并替换部署里的 mock：`pump_sm_pump_service.py`（MQ→jasmin HTTP /send，
+  DLR 走 jasmin dlr-thrower 原生 AMQP 链）+ `pump_sm_smpp_mgr_service.py`（jcli telnet 可编程驱动）
+- 真实历史数据已从 legacy tarball 恢复（mysql:5.7 datadir 中转法，5 用户/207 表）
+- 通用坑（jasmin 0.10.14）：SMPP 密码≤8字节；messaging 交换机 durable=False 且只能由 jasmin 声明；
+  容器注入 rabbit 凭据须整目录挂载 /etc/jasmin（单文件挂载与 entrypoint 的 sed -i 不兼容）
