@@ -406,3 +406,14 @@ docker run -d --name nc_nginx \
 - 真实历史数据已从 legacy tarball 恢复（mysql:5.7 datadir 中转法，5 用户/207 表）
 - 通用坑（jasmin 0.10.14）：SMPP 密码≤8字节；messaging 交换机 durable=False 且只能由 jasmin 声明；
   容器注入 rabbit 凭据须整目录挂载 /etc/jasmin（单文件挂载与 entrypoint 的 sed -i 不兼容）
+
+### pump_sm SMPP 运营商模拟器上线（2026-11-01 深夜收官）
+
+- jasmin-dcr2 卸下"运营商"角色回归 DCR2 节点本位；运营商由 `pump_sm_smpp_simulator.py` 接管
+  （smpp.pdu3 编解码 + 号段规则 + 延迟 deliver_sm 标准回执），容器化随 backend 镜像部署
+- 终态回执链首次全通：sim→dcr1(dlr-thrower)→rabbit→persist→DB（DELIVRD/UNDELIV/REJECTD 精确落库）
+- **通用级大坑：jasmin 的 txamqp 存在 py3 字节长度缺陷**——AMQP 属性表字符串按字符数而非 UTF-8
+  字节数声明长度，中文文本直接打死 Rabbit 的 parse_table（channel 崩→连接断）。凡与 jasmin 0.10
+  联动的 AMQP 消息，headers 中的字符串必须 ASCII 化
+- rabbit 镜像定版 3.8（jasmin 同代）；jasmin /etc/jasmin/store 必须显式 bind（镜像 VOLUME 声明
+  会以匿名卷盖住父目录挂载，容器重建即失忆）；jcli 改配置后必须验 persist 落盘文件
