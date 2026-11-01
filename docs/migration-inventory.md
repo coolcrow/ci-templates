@@ -438,3 +438,16 @@ docker run -d --name nc_nginx \
 - celery 容器退场（代码保留；确认全库无 .delay/.apply_async 生产者）
 - 对账脚本上线（cron 05:00）：免费路由阶段悬挂单>24h 免单归档 + jasmin/门户余额差异告警
   （真实计费通道接入后第一步自动核销必须下线，改强告警——已写入脚本头部注释）
+
+### pump_sm 中期档①②（2026-11-02）
+
+- **MySQL 收编 mysql-shared 完成**：pump_sm_db 落共享实例（root/my-secret-pw，3306），应用容器已切流并
+  三重验证（login/全链路冒烟/shared 落库）；strict 模式差异用会话级 sql_mode（pymysql init_command）
+  对齐专用库行为，零 schema 改动；专用库 pump-sm-mysql(13306) 保留运行作热备——回滚=compose 改回
+  两行 DB env + deploy，分钟级
+- 运维目标统一 ~/.pump_sm_ops.env（备份/巡检/对账/冒烟四脚本 source），切流与回滚只动这一个文件
+- jasmin 用户密码随机化（SMPP 8 字节限制内 per-user 生成，Channel 与 jasmin 双写同步）
+- alembic 基线入库（63c6f36584c1，已 stamp；动态分表类不在 metadata，天然排除）
+- 巡检新增 CARRIER jcli 真实绑定态（捕获"有消费者但会话僵死"盲区）
+- 网络事件：mihomo 上游僵死导致 github.com RST（api.github.com 不受影响）——重启 mihomo 即愈，
+  git 推送失败先查代理服务再怀疑网络
