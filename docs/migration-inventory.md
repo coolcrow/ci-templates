@@ -383,3 +383,18 @@ docker run -d --name nc_nginx \
 - 重建前先 `docker inspect nc_nginx > /tmp/backup.json` 保存当前配置
 - 坑：GH-hosted runner 的 ~/.ssh 属 root，密钥必须写 $RUNNER_TEMP
 - 坑：d2d-subdomains 证书是三商户多 SAN 而非泛域名——新 *.d2d 站点不能直接复用
+
+### pump_sm 接入备忘（2026-11-01，搁置遗留系统环境重建，非迁移）
+
+- 仓库：coolcrow/pump_sm（新建私有仓库，干净历史首提交——旧目录 pump_sm_orig 含明文密码不外带）
+- 业务：旧版 2C 短信运营门户（Flask 2.2/SQLAlchemy 2.0/py3.10，4 进程入口：web/schedule/persist×2 + celery）
+- Dokploy：project=pump-sm（0bIpZHUeyGW6fuJ-tbKcD）/ composeId=uCRXGE2W0neDAXh1kdFdO，端口 **8600**
+- 部署形态：单镜像 8 服务（web/schedule/persist×2/celery + **缺失组件 mock×3**）；skip-tests 过渡
+  （py3.12 测试容器装不了老 gevent；本地已用 py3.10+freeze 快照完成 S1-S5 全链路冒烟）
+- 中间件**专用而非共享**：pump-sm-mysql(13306)/redis(16379)/rabbitmq(5673,15673)/jasmin 0.10.14×2(14001/14002)
+  ——deploy/local/docker-compose.yml 自管，restart=unless-stopped；未迁 mysql-shared（后续可选）
+- 关键缺口（待找回/重写，暂以镜像内 deploy/local/mocks/ 替代）：①泵进程（消费 submit.portal.all）
+  ②自研 smpp-mgr 包装服务（portal 的 JASMIN 地址实际指向它，非 Jasmin 原生 REST）
+- 坑：gh api 调 registration-token 必须 -X POST（默认 GET 返回 404 误报无权限）；
+  DOKPLOY_API_URL 变量不带 /api（模板自拼，带 /api 会变 /api/api/ 404）；
+  runner 目录 cp 源必须选实体文件布局（weixin 是符号链接布局，cp -a 会复制出指向原目录的假 runner）
