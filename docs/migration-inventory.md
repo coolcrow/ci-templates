@@ -417,3 +417,13 @@ docker run -d --name nc_nginx \
   联动的 AMQP 消息，headers 中的字符串必须 ASCII 化
 - rabbit 镜像定版 3.8（jasmin 同代）；jasmin /etc/jasmin/store 必须显式 bind（镜像 VOLUME 声明
   会以匿名卷盖住父目录挂载，容器重建即失忆）；jcli 改配置后必须验 persist 落盘文件
+
+### pump_sm 红色档加固（2026-11-02 凌晨）
+
+- 生产 SQL echo 归零（新增 container profile）；celery worker 同步关闭
+- jcli 弃默认口令（md5 入 cfg + compose command 经 .env 插值注入 `-p`）——**关键机制**：jasmind 启动
+  用 `-u/-p` 自登录执行 profile 自动加载，改密码不同步此参数 = 每次重启配置全空
+- jasmin 日志落主机 + 全服务 json-file 10m×3 限额；MySQL 每日备份（04:30，/mnt/data/projects/backups）
+- 巡检告警 cron（*/5：容器/队列深度/连接器消费者/当日分表/悬挂单/磁盘→企微 webhook 可配）
+- **巡检首跑立功**：130 条 state=0 计费悬挂单——免费路由(rate 0)下 jasmin 无 bill 回调、门户预扣单
+  结构性无人核销（对账缺口实锤，已列中期优化项）；历史测试单已核销归档
