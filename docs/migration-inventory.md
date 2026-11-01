@@ -451,3 +451,12 @@ docker run -d --name nc_nginx \
 - 巡检新增 CARRIER jcli 真实绑定态（捕获"有消费者但会话僵死"盲区）
 - 网络事件：mihomo 上游僵死导致 github.com RST（api.github.com 不受影响）——重启 mihomo 即愈，
   git 推送失败先查代理服务再怀疑网络
+
+### pump_sm 中期档②（2026-11-02 早）
+
+- 监控栈：prometheus 19090 / grafana 13000（admin/pump_sm_grafana），采集 node+mysql-shared+redis+
+  rabbit(插件15692)+jasmin(/metrics×2)，看板自动供给；告警仍走 cron 巡检单一路径
+- 存量客户 jasmin 重建工具（随机密码 Channel/jasmin 双写，超时回查加固——mgr 建号多轮 jcli 会话
+  客户端超时须≥60s，超时≠失败）；alice/lucy/lily 网关侧已就绪
+- 通用坑：rabbit 任何重启（含启插件）都会连带非 durable 的 messaging 交换机消失，
+  恢复=重启 jasmin+应用容器全量（实测 3 分钟全绿）
