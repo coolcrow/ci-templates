@@ -427,3 +427,14 @@ docker run -d --name nc_nginx \
 - 巡检告警 cron（*/5：容器/队列深度/连接器消费者/当日分表/悬挂单/磁盘→企微 webhook 可配）
 - **巡检首跑立功**：130 条 state=0 计费悬挂单——免费路由(rate 0)下 jasmin 无 bill 回调、门户预扣单
   结构性无人核销（对账缺口实锤，已列中期优化项）；历史测试单已核销归档
+
+### pump_sm 短期档完成（2026-11-02 凌晨）
+
+- **CI 端到端冒烟 job 上线**（smoke-e2e：登录→发送→模拟器→DLR→DB 终态断言）——首飞即捕获 mgr
+  /user/detail 响应结构缺陷（portal 依赖嵌套 group.gid/max_bindings/enabled/route_list，已补全）；
+  发送端点 imp_sms_task 实为无 CSRF 纯表单（考古确认）
+- persist 双进程 SQL 参数化（表名白名单校验）；毒消息改 reject+死信日志（不再无限重投卡死队列）；
+  mid→表名映射 TTL 3→7 天
+- celery 容器退场（代码保留；确认全库无 .delay/.apply_async 生产者）
+- 对账脚本上线（cron 05:00）：免费路由阶段悬挂单>24h 免单归档 + jasmin/门户余额差异告警
+  （真实计费通道接入后第一步自动核销必须下线，改强告警——已写入脚本头部注释）
