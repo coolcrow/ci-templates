@@ -460,3 +460,13 @@ docker run -d --name nc_nginx \
   客户端超时须≥60s，超时≠失败）；alice/lucy/lily 网关侧已就绪
 - 通用坑：rabbit 任何重启（含启插件）都会连带非 durable 的 messaging 交换机消失，
   恢复=重启 jasmin+应用容器全量（实测 3 分钟全绿）
+
+### pump_sm sign HMAC 化（2026-11-02）
+
+- create_sign = HMAC-SHA256(SECRET_KEY, payload)，格式 hmac$<hex64>；14 处写入点全量替换
+  （含 create_password as create_sign 的两处别名导入）；verify_sign 双格式兼容
+- 历史数据重签：users+consume_his 全量 → hmac 格式（md5 残留 0）
+- **两个踩坑（重签类迁移通用）**：①payload 必须与校验端逐字一致——NULL 兜底差异即全军覆没
+  （lucy 被 ban 接口误封即此）；②重签必须用**生产 SECRET_KEY**（本地 dev 默认 key 签出的
+  签名容器全部校验失败，且 smoke 不覆盖 verify 环节拦不住）——事后补了容器侧 verify 终验
+- 决策记档：公网入口暂不开放（内网测试期）；真实通道暂不接（模拟器即长期测试载体）
