@@ -470,3 +470,20 @@ docker run -d --name nc_nginx \
   （lucy 被 ban 接口误封即此）；②重签必须用**生产 SECRET_KEY**（本地 dev 默认 key 签出的
   签名容器全部校验失败，且 smoke 不覆盖 verify 环节拦不住）——事后补了容器侧 verify 终验
 - 决策记档：公网入口暂不开放（内网测试期）；真实通道暂不接（模拟器即长期测试载体）
+
+## 新增项目（非迁移，直接中央流水线）
+
+| 项目 | 仓库 | Dokploy | 端口 | runner | 数据库 | 状态 |
+|---|---|---|---|---|---|---|
+| retireclock | coolcrow/retireclock | composeId=SDyEpX5JZW6Muu0xzywFi | 8601 | actions-runner-retireclock | mysql-shared/retireclock（专用账号） | ✅ 2026-11-18 |
+
+### retireclock 接入备忘（2026-11-18）
+
+- 后端 FastAPI：/healthz、/api/track（埋点）、/api/config（策略热更下发）、
+  /api/wxacode + /api/subscribe/send（WECHAT_APPID/SECRET 凭据门控，未配 503）
+- 凭据文件：服务器 ~/retireclock-backend.env（DATABASE_URL/TEST_DB_URL，600）
+- compose 必须 `env_file: - .env`，否则 Dokploy env 字段不进容器（踩坑：默认 URL 落 127.0.0.1）
+- runner 全新解压安装（cp -r 旧 runner 会带版本目录符号链接与 .runner_migrated，不可用；
+  externals 去重软链指向 /mnt/data 共享副本会导致容器 job 挂载 /__e/node24 失败——需真实目录）
+- 首次 ghcr 推送 250MB 镜像经代理约 25 分钟，可能撞中央模板 25min 超时；重跑续传即可
+- gh api 取 runner registration-token 必须显式 -X POST（默认 GET 返回 404）
