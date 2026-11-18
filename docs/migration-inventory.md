@@ -487,3 +487,11 @@ docker run -d --name nc_nginx \
   externals 去重软链指向 /mnt/data 共享副本会导致容器 job 挂载 /__e/node24 失败——需真实目录）
 - 首次 ghcr 推送 250MB 镜像经代理约 25 分钟，可能撞中央模板 25min 超时；重跑续传即可
 - gh api 取 runner registration-token 必须显式 -X POST（默认 GET 返回 404）
+
+### retireclock 公网入口预置（2026-11-18，待 DNS 激活）
+
+- 隧道：frpc-rc 独立容器（不并入 frpc-hd，零爆炸半径），127.0.0.1:8601 → CVM remotePort 8106
+  （8096 已被占用——frpc 配置清单要含 CVM 本地监听，不能只看 frpc 目录）
+- CVM 已备：~/retireclock-nginx.conf（4443 ssl proxy_protocol → 172.20.0.1:8106）、
+  ~/retireclock-public.sh（DNS 检查→acme standalone 8104 签证→install-cert→激活→自检）
+- 激活条件：DNSPod 手工加 A 记录 retireclock.aibolt.tech → 43.139.120.168 后跑一键脚本
